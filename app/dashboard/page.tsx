@@ -109,7 +109,7 @@ export default function DashboardPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Welcome, {user.displayName || "User"}</h1>
-          <p className="text-muted-foreground">Manage your business documents with ByteBills</p>
+          <p className="text-muted-foreground">Manage all your business documents with ByteBills</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
