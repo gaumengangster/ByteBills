@@ -4,32 +4,14 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { toast } from "@/components/ui/use-toast"
-import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
+import { toast } from "sonner"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format } from "date-fns"
-import { ArrowLeft, Calendar, Download, Edit, Mail, MoreHorizontal, Phone, Send, Trash2, User } from "lucide-react"
+import { Calendar, Mail, Phone, User } from "lucide-react"
+import { InvoiceActions } from "@/components/invoices/invoice-actions"
 import { use } from "react";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +19,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const { id } = use(params)
 
   useEffect(() => {
@@ -54,10 +35,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         const invoiceDoc = await getDoc(doc(db, "invoices", id))
 
         if (!invoiceDoc.exists()) {
-          toast({
-            title: "Invoice not found",
+          toast("Invoice not found", {
             description: "The requested invoice does not exist.",
-            variant: "destructive",
           })
           router.push("/invoices")
           return
@@ -70,11 +49,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         }
 
         // Check if the invoice belongs to the current user
-        if (invoiceData.userId as string !== user.uid) {
-          toast({
-            title: "Access denied",
+        if ((invoiceData.userId as string) !== user.uid) {
+          toast("Access denied", {
             description: "You don't have permission to view this invoice.",
-            variant: "destructive",
           })
           router.push("/invoices")
           return
@@ -83,10 +60,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         setInvoice(invoiceData)
       } catch (error) {
         console.error("Error fetching invoice:", error)
-        toast({
-          title: "Error",
+        toast("Error", {
           description: "Failed to load invoice. Please try again.",
-          variant: "destructive",
         })
       } finally {
         setLoadingInvoice(false)
@@ -113,39 +88,14 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         updatedAt: new Date().toISOString(),
       })
 
-      toast({
-        title: "Status updated",
+      toast("Status updated", {
         description: `Invoice status has been updated to ${newStatus}.`,
       })
     } catch (error) {
       console.error("Error updating status:", error)
-      toast({
-        title: "Error",
+      toast("Error", {
         description: "Failed to update invoice status. Please try again.",
-        variant: "destructive",
       })
-    }
-  }
-
-  const handleDelete = async () => {
-    try {
-      await deleteDoc(doc(db, "invoices", await id))
-
-      toast({
-        title: "Invoice deleted",
-        description: "The invoice has been deleted successfully.",
-      })
-
-      router.push("/invoices")
-    } catch (error) {
-      console.error("Error deleting invoice:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete invoice. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setDeleteDialogOpen(false)
     }
   }
 
@@ -184,71 +134,20 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       <Navbar />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div className="flex items-center">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/invoices")} className="mr-2">
-              <ArrowLeft className="h-5 w-5" />
-              <span className="sr-only">Back</span>
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Invoice #{invoice.invoiceNumber}</h1>
-              <div className="flex items-center mt-1">
-                {getStatusBadge(invoice.status)}
-                <span className="text-muted-foreground ml-2">
-                  Last updated: {format(new Date(invoice.updatedAt), "MMM d, yyyy")}
-                </span>
-              </div>
+          <div>
+            <h1 className="text-3xl font-bold">Invoice #{invoice.invoiceNumber}</h1>
+            <div className="flex items-center mt-1">
+              {getStatusBadge(invoice.status)}
+              <span className="text-muted-foreground ml-2">
+                Last updated: {format(new Date(invoice.updatedAt), "MMM d, yyyy")}
+              </span>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push(`/invoices/${id}/edit`)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-
-            <Button>
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">More options</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem>
-                  <Send className="mr-2 h-4 w-4" />
-                  Send to Client
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Status</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleStatusChange("pending")} disabled={invoice.status === "pending"}>
-                  Mark as Pending
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange("paid")} disabled={invoice.status === "paid"}>
-                  Mark as Paid
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusChange("overdue")} disabled={invoice.status === "overdue"}>
-                  Mark as Overdue
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleStatusChange("cancelled")}
-                  disabled={invoice.status === "cancelled"}
-                >
-                  Mark as Cancelled
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {user ?
+            (<InvoiceActions invoice={invoice} userId={user.uid} onStatusChange={handleStatusChange} />)
+            : ( <p>Loading user data...</p> )
+          }
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -437,25 +336,123 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </Card>
           </div>
         </div>
-      </main>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the invoice.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* This div is used for PDF generation */}
+        <div id={`invoice-content-${invoice.id}`} className="hidden">
+          <div className="bg-white p-8">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h1 className="text-2xl font-bold mb-1">INVOICE</h1>
+                <div className="text-gray-600">
+                  <div>Invoice # {invoice.invoiceNumber}</div>
+                  <div>Date: {format(new Date(invoice.invoiceDate), "PP")}</div>
+                  <div>Due: {format(new Date(invoice.dueDate), "PP")}</div>
+                </div>
+              </div>
+
+              <div className="text-right">
+                {invoice.companyDetails.logo ? (
+                  <img
+                    src={invoice.companyDetails.logo || "/placeholder.svg"}
+                    alt={invoice.companyDetails.name}
+                    className="w-24 h-auto mb-2"
+                  />
+                ) : (
+                  <div className="text-xl font-bold mb-2">{invoice.companyDetails.name}</div>
+                )}
+                <div className="text-sm text-gray-600">
+                  {invoice.companyDetails.address && <div>{invoice.companyDetails.address}</div>}
+                  {(invoice.companyDetails.city || invoice.companyDetails.country) && (
+                    <div>
+                      {invoice.companyDetails.city}
+                      {invoice.companyDetails.city && invoice.companyDetails.country && ", "}
+                      {invoice.companyDetails.country}
+                    </div>
+                  )}
+                  {invoice.companyDetails.phone && <div>{invoice.companyDetails.phone}</div>}
+                  {invoice.companyDetails.email && <div>{invoice.companyDetails.email}</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">Bill To:</h2>
+                <div>
+                  <div className="font-medium">{invoice.clientDetails.name}</div>
+                  {invoice.clientDetails.address && (
+                    <div className="text-gray-600">{invoice.clientDetails.address}</div>
+                  )}
+                  {invoice.clientDetails.phone && <div className="text-gray-600">{invoice.clientDetails.phone}</div>}
+                  {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.email}</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="text-left p-2 border">Description</th>
+                    <th className="text-center p-2 border">Quantity</th>
+                    <th className="text-right p-2 border">Unit Price</th>
+                    <th className="text-right p-2 border">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.items.map((item: any, index: number) => (
+                    <tr key={index}>
+                      <td className="p-2 border">{item.description}</td>
+                      <td className="text-center p-2 border">{item.quantity}</td>
+                      <td className="text-right p-2 border">{formatCurrency(item.unitPrice)}</td>
+                      <td className="text-right p-2 border">{formatCurrency(item.quantity * item.unitPrice)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} className="border"></td>
+                    <td className="text-right p-2 border">Subtotal</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} className="border"></td>
+                    <td className="text-right p-2 border">Tax</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.tax)}</td>
+                  </tr>
+                  <tr className="font-bold">
+                    <td colSpan={2} className="border"></td>
+                    <td className="text-right p-2 border">Total</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {(invoice.notes || invoice.terms) && (
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                {invoice.notes && (
+                  <div>
+                    <h3 className="font-medium mb-2">Notes:</h3>
+                    <p className="text-sm text-gray-600">{invoice.notes}</p>
+                  </div>
+                )}
+
+                {invoice.terms && (
+                  <div>
+                    <h3 className="font-medium mb-2">Terms & Conditions:</h3>
+                    <p className="text-sm text-gray-600">{invoice.terms}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="text-center mt-8 pt-8 border-t text-sm text-gray-600">
+              <p>Thank you for your business!</p>
+            </div>
+          </div>
+        </div>
+      </main>
     </>
   )
 }
-
