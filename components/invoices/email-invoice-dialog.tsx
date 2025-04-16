@@ -67,8 +67,8 @@ export function EmailInvoiceDialog({ isOpen, onClose, invoice, userId }: EmailIn
         // 3. Get the download URL
         // For now, we'll just simulate this process
 
-        // Generate PDF (this would actually happen server-side in production)
-        await generateInvoicePDF(invoice.id)
+        // Generate PDF
+        await generateInvoicePDF(invoice)
 
         // Simulate a URL for the attachment
         attachmentUrl = `https://storage.example.com/invoices/${invoice.id}.pdf`

@@ -32,7 +32,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast"
-import { Download, Edit, Eye, FileText, MoreHorizontal, Plus, Search, Trash2, Send } from "lucide-react"
+import {
+  Download,
+  Edit,
+  Eye,
+  FileText,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  Send,
+  Share2,
+  Loader2,
+} from "lucide-react"
+import { EmailInvoiceDialog } from "@/components/invoices/email-invoice-dialog"
+import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
+import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth()
@@ -44,6 +59,10 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
+  const [isDownloading, setIsDownloading] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -159,6 +178,40 @@ export default function InvoicesPage() {
       setDeleteDialogOpen(false)
       setInvoiceToDelete(null)
     }
+  }
+
+  const handleDownloadPDF = async (invoice: any) => {
+    setIsDownloading(invoice.id)
+
+    try {
+      // Generate PDF directly using our new approach
+      const pdfBlob = await generateInvoicePDF(invoice)
+      downloadPDF(pdfBlob, `Invoice-${invoice.invoiceNumber}.pdf`)
+
+      toast({
+        title: "PDF generated",
+        description: "Your invoice PDF has been downloaded.",
+      })
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloading(null)
+    }
+  }
+
+  const openEmailDialog = (invoice: any) => {
+    setSelectedInvoice(invoice)
+    setIsEmailDialogOpen(true)
+  }
+
+  const openShareDialog = (invoice: any) => {
+    setSelectedInvoice(invoice)
+    setIsShareDialogOpen(true)
   }
 
   const getStatusBadge = (status: string) => {
@@ -308,13 +361,29 @@ export default function InvoicesPage() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download PDF
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadPDF(invoice)}
+                            disabled={isDownloading === invoice.id}
+                          >
+                            {isDownloading === invoice.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download PDF
+                              </>
+                            )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEmailDialog(invoice)}>
                             <Send className="mr-2 h-4 w-4" />
                             Send to Client
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openShareDialog(invoice)}>
+                            <Share2 className="mr-2 h-4 w-4" />
+                            Share
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Status</DropdownMenuLabel>
@@ -374,7 +443,24 @@ export default function InvoicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedInvoice && (
+        <>
+          {user ? (<EmailInvoiceDialog
+            isOpen={isEmailDialogOpen}
+            onClose={() => setIsEmailDialogOpen(false)}
+            invoice={selectedInvoice}
+            userId={user.uid}
+          />) : (<p>Loading user data...</p>)}
+
+          <ShareInvoiceDialog
+            isOpen={isShareDialogOpen}
+            onClose={() => setIsShareDialogOpen(false)}
+            invoiceId={selectedInvoice.id}
+            invoiceNumber={selectedInvoice.invoiceNumber}
+          />
+        </>
+      )}
     </>
   )
 }
-

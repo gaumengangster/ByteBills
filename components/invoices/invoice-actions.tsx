@@ -11,10 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/use-toast"
 import { doc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { ArrowLeft, Download, Edit, MoreHorizontal, Send, Share2, Trash2 } from "lucide-react"
+import { ArrowLeft, Download, Edit, MoreHorizontal, Send, Share2, Trash2, Loader2 } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { EmailInvoiceDialog } from "./email-invoice-dialog"
 import { ShareInvoiceDialog } from "./share-invoice-dialog"
@@ -46,16 +46,19 @@ export function InvoiceActions({ invoice, userId, onStatusChange }: InvoiceActio
     setIsDownloading(true)
 
     try {
-      const pdfBlob = await generateInvoicePDF(invoice.id)
+      const pdfBlob = await generateInvoicePDF(invoice)
       downloadPDF(pdfBlob, `Invoice-${invoice.invoiceNumber}.pdf`)
 
-      toast( "PDF generated", {
+      toast({
+        title: "PDF generated",
         description: "Your invoice PDF has been downloaded.",
       })
     } catch (error) {
       console.error("Error generating PDF:", error)
-      toast("Error", {
+      toast({
+        title: "Error",
         description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setIsDownloading(false)
@@ -66,15 +69,18 @@ export function InvoiceActions({ invoice, userId, onStatusChange }: InvoiceActio
     try {
       await deleteDoc(doc(db, "invoices", invoice.id))
 
-      toast("Invoice deleted", {
+      toast({
+        title: "Invoice deleted",
         description: "The invoice has been deleted successfully.",
       })
 
       router.push("/invoices")
     } catch (error) {
       console.error("Error deleting invoice:", error)
-      toast("Error", {
+      toast({
+        title: "Error",
         description: "Failed to delete invoice. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setDeleteDialogOpen(false)
@@ -95,8 +101,17 @@ export function InvoiceActions({ invoice, userId, onStatusChange }: InvoiceActio
         </Button>
 
         <Button onClick={handleDownloadPDF} disabled={isDownloading}>
-          <Download className="mr-2 h-4 w-4" />
-          {isDownloading ? "Generating..." : "Download PDF"}
+          {isDownloading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </>
+          )}
         </Button>
 
         <Button variant="outline" onClick={() => setIsEmailDialogOpen(true)}>
