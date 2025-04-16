@@ -1,5 +1,5 @@
 import jsPDF from "jspdf"
-import html2canvas from 'html2canvas-pro'
+import html2canvas from "html2canvas"
 
 export async function generateInvoicePDF(invoiceId: string): Promise<Blob> {
   // Get the invoice element

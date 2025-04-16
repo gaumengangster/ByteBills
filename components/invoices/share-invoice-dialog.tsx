@@ -18,7 +18,7 @@ type ShareInvoiceDialogProps = {
 
 export function ShareInvoiceDialog({ isOpen, onClose, invoiceId, invoiceNumber }: ShareInvoiceDialogProps) {
   // In a real app, this would be a public URL to view the invoice
-  const shareUrl = `https://bytebills.app/view/${invoiceId}`
+  const shareUrl = `https://byte-bills.vercel.app/view/${invoiceId}`
 
   const [activeTab, setActiveTab] = useState("link")
 
