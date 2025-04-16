@@ -30,7 +30,7 @@ export default function SettingsPage() {
       if (!user) return
 
       try {
-        const userDoc = await getDoc(doc(db, "users", user.uid))
+        const userDoc = await getDoc(doc(db, "bytebills-users", user.uid))
         if (userDoc.exists()) {
           setUserData(userDoc.data())
         }

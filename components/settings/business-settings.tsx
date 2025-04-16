@@ -67,7 +67,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
           businessDetails: {
             address: selected.businessDetails?.address || "",
             city: selected.businessDetails?.city || "",
-            country: selected.businessDetails?.country || "US",
+            country: selected.businessDetails?.country || "UG",
             email: selected.businessDetails?.email || "",
             phone: selected.businessDetails?.phone || "",
             website: selected.businessDetails?.website || "",
@@ -113,7 +113,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
     setIsUploading(true)
 
     try {
-      const logoRef = ref(storage, `companies/${userId}/${companyId}/logo/${logo.name}`)
+      const logoRef = ref(storage, `bytebills-companies/${userId}/${companyId}/logo/${logo.name}`)
       const uploadTask = uploadBytesResumable(logoRef, logo)
 
       return new Promise<string>((resolve, reject) => {
@@ -164,7 +164,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
       await deleteLogo()
 
       // Update company data
-      const userRef = doc(db, "users", userId)
+      const userRef = doc(db, "bytebills-users", userId)
       const userDoc = await getDoc(userRef)
 
       if (userDoc.exists()) {
@@ -253,7 +253,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
       }
 
       // Update company data
-      const userRef = doc(db, "users", userId)
+      const userRef = doc(db, "bytebills-users", userId)
       const userDoc = await getDoc(userRef)
 
       if (userDoc.exists()) {

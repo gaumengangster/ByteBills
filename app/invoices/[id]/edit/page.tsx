@@ -10,13 +10,15 @@ import { db } from "@/lib/firebase"
 import { toast } from "@/components/ui/use-toast"
 import { InvoiceForm } from "@/components/invoices/invoice-form-edit"
 import { ArrowLeft, Loader2 } from "lucide-react"
+import { use } from "react";
 
-export default function EditInvoicePage({ params }: { params: { id: string } }) {
+export default function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [companies, setCompanies] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(true)
+  const { id } = use(params);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,7 +32,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
 
       try {
         // Fetch invoice
-        const invoiceDoc = await getDoc(doc(db, "invoices", params.id))
+        const invoiceDoc = await getDoc(doc(db, "invoices", id))
 
         if (!invoiceDoc.exists()) {
           toast({
@@ -44,6 +46,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
 
         const invoiceData = {
           id: invoiceDoc.id,
+          userId: invoiceDoc.data().userId,
           ...invoiceDoc.data(),
         }
 
@@ -61,7 +64,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
         setInvoice(invoiceData)
 
         // Fetch user data to get companies
-        const userDoc = await getDoc(doc(db, "users", user.uid))
+        const userDoc = await getDoc(doc(db, "bytebills-users", user.uid))
         if (userDoc.exists()) {
           const userData = userDoc.data()
           setCompanies(userData.companies || [])
@@ -78,10 +81,10 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
       }
     }
 
-    if (user && params.id) {
+    if (user && id) {
       fetchData()
     }
-  }, [user, params.id, router])
+  }, [user, id, router])
 
   if (loading || loadingData) {
     return (
@@ -101,7 +104,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
       <Navbar />
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center mb-8">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/invoices/${params.id}`)} className="mr-2">
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/invoices/${id}`)} className="mr-2">
             <ArrowLeft className="h-5 w-5" />
             <span className="sr-only">Back</span>
           </Button>
@@ -111,7 +114,12 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        <InvoiceForm userId={user.uid} companies={companies} invoice={invoice} invoiceId={params.id} />
+        {user ? (
+              <InvoiceForm userId={user.uid} companies={companies} invoice={invoice} invoiceId={id} />
+            ) : (
+              <p>Loading user data...</p> 
+            )}
+          
       </main>
     </>
   )

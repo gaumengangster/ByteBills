@@ -129,7 +129,7 @@ export function AccountSettings({ user, userData, loading }: AccountSettingsProp
 
       // Update email in Firestore
       if (user.uid) {
-        const userRef = doc(db, "users", user.uid)
+        const userRef = doc(db, "bytebills-users", user.uid)
         await updateDoc(userRef, {
           email: formData.email,
         })

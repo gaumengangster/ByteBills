@@ -30,13 +30,15 @@ import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { ArrowLeft, Calendar, Download, Edit, Mail, MoreHorizontal, Phone, Send, Trash2, User } from "lucide-react"
+import { use } from "react";
 
-export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
+export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const { id } = use(params)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -49,7 +51,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
       if (!user) return
 
       try {
-        const invoiceDoc = await getDoc(doc(db, "invoices", params.id))
+        const invoiceDoc = await getDoc(doc(db, "invoices", id))
 
         if (!invoiceDoc.exists()) {
           toast({
@@ -63,6 +65,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
 
         const invoiceData = {
           id: invoiceDoc.id,
+          userId: invoiceDoc.data().userId,
           ...invoiceDoc.data(),
         }
 
@@ -90,14 +93,14 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
       }
     }
 
-    if (user && params.id) {
+    if (user && id) {
       fetchInvoice()
     }
-  }, [user, params.id, router])
+  }, [user, id, router])
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      const invoiceRef = doc(db, "invoices", params.id)
+      const invoiceRef = doc(db, "invoices", id)
       await updateDoc(invoiceRef, {
         status: newStatus,
         updatedAt: new Date().toISOString(),
@@ -126,7 +129,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
 
   const handleDelete = async () => {
     try {
-      await deleteDoc(doc(db, "invoices", params.id))
+      await deleteDoc(doc(db, "invoices", await id))
 
       toast({
         title: "Invoice deleted",
@@ -198,7 +201,7 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push(`/invoices/${params.id}/edit`)}>
+            <Button variant="outline" onClick={() => router.push(`/invoices/${id}/edit`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>

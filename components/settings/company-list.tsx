@@ -62,7 +62,7 @@ export function CompanyList({ companies, isPremium, userId }: CompanyListProps) 
         createdAt: new Date().toISOString(),
       }
 
-      const userRef = doc(db, "users", userId)
+      const userRef = doc(db, "bytebills-users", userId)
       await updateDoc(userRef, {
         companies: arrayUnion(newCompany),
       })
@@ -95,7 +95,7 @@ export function CompanyList({ companies, isPremium, userId }: CompanyListProps) 
 
       setDefaultCompanyId(companyId)
 
-      const userRef = doc(db, "users", userId)
+      const userRef = doc(db, "bytebills-users", userId)
       const userDoc = await getDoc(userRef)
 
       if (userDoc.exists()) {
@@ -135,7 +135,7 @@ export function CompanyList({ companies, isPremium, userId }: CompanyListProps) 
     }
 
     try {
-      const userRef = doc(db, "users", userId)
+      const userRef = doc(db, "bytebills-users", userId)
       const userDoc = await getDoc(userRef)
 
       if (userDoc.exists()) {
