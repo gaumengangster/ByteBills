@@ -23,6 +23,7 @@ import { DeliveryNoteItems } from "@/components/delivery-notes/delivery-note-ite
 import { DeliveryNotePreview } from "@/components/delivery-notes/delivery-note-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { use } from "react"
 
 // Create a schema for delivery note validation
 const deliveryNoteSchema = z.object({
@@ -53,15 +54,54 @@ const deliveryNoteSchema = z.object({
 
 type DeliveryNoteFormValues = z.infer<typeof deliveryNoteSchema>
 
-export default function EditDeliveryNotePage({ params }: { params: { id: string } }) {
+// Add this interface near the top of the file, after the imports
+interface DeliveryNoteData {
+  id: string
+  userId: string
+  companyId: string
+  companyDetails: {
+    name: string
+    address?: string
+    city?: string
+    country?: string
+    email?: string
+    phone?: string
+    logo?: string | null
+  }
+  clientDetails: {
+    name: string
+    email?: string
+    phone?: string
+    address?: string
+  }
+  deliveryNoteNumber: string
+  deliveryDate: string
+  deliveryAddress?: string
+  items: Array<{
+    description: string
+    quantity: number
+    notes?: string
+  }>
+  deliveryInstructions?: string
+  notes?: string
+  invoiceReference?: string
+  orderReference?: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export default function EditDeliveryNotePage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [userData, setUserData] = useState<any>(null)
-  const [deliveryNote, setDeliveryNote] = useState<any>(null)
+  // Update the useState definition
+  const [deliveryNote, setDeliveryNote] = useState<DeliveryNoteData | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
+  const { id } = use(params)
 
   // Set up the form
   const form = useForm<DeliveryNoteFormValues>({
@@ -101,7 +141,7 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
         }
 
         // Fetch delivery note data
-        const deliveryNoteDoc = await getDoc(doc(db, "deliveryNotes", params.id))
+        const deliveryNoteDoc = await getDoc(doc(db, "deliveryNotes", id))
         if (!deliveryNoteDoc.exists()) {
           toast({
             title: "Delivery note not found",
@@ -112,10 +152,11 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
           return
         }
 
-        const deliveryNoteData = {
+        
+        const deliveryNoteData: DeliveryNoteData = {
           id: deliveryNoteDoc.id,
           userId: deliveryNoteDoc.data().userId,
-          ...deliveryNoteDoc.data(),
+          ...deliveryNoteDoc.data() as Omit<DeliveryNoteData, 'id' | 'userId'>
         }
 
         // Check if the delivery note belongs to the current user
@@ -130,6 +171,7 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
         }
 
         setDeliveryNote(deliveryNoteData)
+        console.log("Delivery note set", deliveryNote)
 
         // Set form values
         form.reset({
@@ -162,7 +204,7 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
     if (user) {
       fetchData()
     }
-  }, [user, params.id, router, form])
+  }, [user, id, router, form])
 
   // Handle form submission
   async function onSubmit(values: DeliveryNoteFormValues) {
@@ -202,7 +244,7 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
       }
 
       // Update in Firestore
-      await updateDoc(doc(db, "deliveryNotes", params.id), deliveryNoteData)
+      await updateDoc(doc(db, "deliveryNotes", id), deliveryNoteData)
 
       toast({
         title: "Delivery note updated",
@@ -210,7 +252,7 @@ export default function EditDeliveryNotePage({ params }: { params: { id: string 
       })
 
       // Navigate to delivery note view
-      router.push(`/delivery-notes/${params.id}`)
+      router.push(`/delivery-notes/${id}`)
     } catch (error) {
       console.error("Error updating delivery note:", error)
       toast({
