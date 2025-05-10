@@ -9,8 +9,8 @@ import { Toaster } from "@/components/ui/sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ByteBills - Invoice & Receipt Generator",
-  description: "Create invoices, receipts, delivery notes and more with ByteBills",
+  title: "ByteBills - Quick Invoicing",
+  description: "Create or generate invoices, receipts, delivery notes and more with ByteBills",
 }
 
 export default function RootLayout({
