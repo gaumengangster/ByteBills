@@ -1,36 +1,142 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ByteBills
+
+<p align="center">
+  <img src="public/LOGO-NO-BG.png" alt="ByteBills Logo" width="200" />
+</p>
+
+<p align="center">
+  A modern, full-featured document management system for businesses
+</p>
+
+## Overview
+
+ByteBills is a comprehensive web application designed to help businesses create, manage, and track various business documents including invoices, receipts, delivery notes, and more. With an intuitive interface and powerful features, ByteBills streamlines document management and provides valuable insights through detailed reports.
+
+## Features
+
+### Document Management
+- **Invoices**: Create, edit, and manage professional invoices
+- **Receipts**: Generate and track payment receipts
+- **Delivery Notes**: Create and manage delivery documentation
+- **PDF Generation**: Convert all documents to downloadable PDF format
+
+### Business Tools
+- **Client Management**: Store and manage client information
+- **Item Catalog**: Save frequently used items for quick addition to documents
+- **Email Integration**: Send documents directly to clients via email
+- **Document Sharing**: Generate shareable links for documents
+
+### Analytics & Reporting
+- **Financial Overview**: Track revenue and payment status
+- **Document Analytics**: Monitor document creation patterns
+- **Client Insights**: Identify top clients and analyze client behavior
+- **Comparative Analysis**: Compare performance across different time periods
+
+### User Experience
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Dark Mode**: Toggle between light and dark themes
+- **Multi-company Support**: Manage multiple businesses under one account
+- **Customizable Settings**: Tailor the application to your business needs
+
+## Screenshots
+
+<div align="center">
+  <img src="screenshots/dashboard.png" alt="Dashboard" width="45%" />
+  <img src="screenshots/invoice-form.png" alt="Invoice Form" width="45%" />
+</div>
+
+<div align="center">
+  <img src="screenshots/reports.png" alt="Reports" width="45%" />
+  <img src="screenshots/settings.png" alt="Settings" width="45%" />
+</div>
+
+## Technology Stack
+
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui
+- **Authentication**: Firebase Authentication
+- **Database**: Firestore
+- **PDF Generation**: jsPDF
+- **Deployment**: Vercel
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 16.x or higher
+- npm or yarn
+- Firebase account
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   \`\`\`bash
+   git clone https://github.com/yourusername/bytebills.git
+   cd bytebills
+   \`\`\`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   \`\`\`bash
+   npm install
+   # or
+   yarn install
+   \`\`\`
 
-## Learn More
+3. Set up environment variables:
+   Create a `.env.local` file in the root directory with the following variables:
+   \`\`\`
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+   \`\`\`
 
-To learn more about Next.js, take a look at the following resources:
+4. Run the development server:
+   \`\`\`bash
+   npm run dev
+   # or
+   yarn dev
+   \`\`\`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+The easiest way to deploy ByteBills is using Vercel:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Push your code to a GitHub repository
+2. Import the project into Vercel
+3. Set the environment variables
+4. Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- [Next.js](https://nextjs.org/)
+- [React](https://reactjs.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Firebase](https://firebase.google.com/)
+- [jsPDF](https://github.com/parallax/jsPDF)
+- [Lucide Icons](https://lucide.dev/)
+
+---
+
+<p align="center">
+  Made with ❤️ by Your Adam from BytebaseTech
+</p>

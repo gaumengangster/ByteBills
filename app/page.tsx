@@ -1,169 +1,161 @@
-/* import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { FileText, Receipt, Truck, FileBarChart, ArrowRight } from 'lucide-react';
-
-export default function Home() {
-  return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-xl">
-            <FileText className="h-6 w-6 text-primary" />
-            <span>ByteBills</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/auth/signin">
-              <Button variant="outline">Sign In</Button>
-            </Link>
-            <Link href="/auth/signup">
-              <Button>Sign Up</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-      <main className="flex-1">
-        <section className="container py-12 md:py-24 lg:py-32">
-          <div className="mx-auto flex max-w-[58rem] flex-col items-center justify-center gap-4 text-center">
-            <h1 className="text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">
-              Create professional invoices and receipts in seconds
-            </h1>
-            <p className="max-w-[42rem] leading-normal text-muted-foreground sm:text-xl sm:leading-8">
-              ByteBills helps you generate invoices, receipts, delivery notes, and proforma invoices with ease. 
-              Track your business documents and get detailed reports.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/auth/signup">
-                <Button size="lg" className="gap-1.5">
-                  Get Started <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="#features">
-                <Button size="lg" variant="outline">
-                  Learn More
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
-        
-        <section id="features" className="container py-12 md:py-24 lg:py-32 bg-muted/50">
-          <div className="mx-auto grid max-w-5xl gap-8 md:gap-12 lg:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold">Invoices & Proforma</h3>
-              <p className="text-muted-foreground">
-                Create professional invoices and proforma invoices with your business details, 
-                logo, and custom line items. Download, share, or print instantly.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Receipt className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold">Receipts</h3>
-              <p className="text-muted-foreground">
-                Generate receipts with automatic amount-to-words conversion. 
-                Keep track of payments and balances for all your clients.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Truck className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold">Delivery Notes</h3>
-              <p className="text-muted-foreground">
-                Create detailed delivery notes with order information, 
-                delivery dates, and item quantities for smooth logistics.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <FileBarChart className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold">Reports & Analytics</h3>
-              <p className="text-muted-foreground">
-                Get insights into your business with detailed reports. 
-                Track document generation over custom time periods.
-              </p>
-            </div>
-          </div>
-        </section>
-      </main>
-      <footer className="border-t py-6 md:py-0">
-        <div className="container flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} ByteBills. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            <Link href="/contact" className="hover:underline">Contact</Link>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
- */
-
 import type React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings } from "lucide-react"
+import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings, CheckCircle } from "lucide-react"
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
-      <div className="w-full max-w-5xl space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">Welcome to ByteBills</h1>
-          <p className="text-muted-foreground">Create invoices, receipts, delivery notes and more</p>
+    <main className="min-h-screen">
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-b from-primary/10 to-background pt-16 pb-24">
+        <div className="container mx-auto px-4 flex flex-col items-center text-center">
+          <div className="mb-8 animate-fade-in">
+            <Image src="/LOGO-NO-BG.png" alt="ByteBills Logo" width={180} height={180} className="mx-auto" priority />
+          </div>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 animate-fade-in">
+            Welcome to <span className="text-primary">ByteBills</span>
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in">
+            The all-in-one solution for creating professional invoices, receipts, delivery notes, and tracking your
+            business performance.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 animate-fade-in">
+            <Button asChild size="lg" className="px-8">
+              <Link href="/auth/login">
+                Get Started <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/reports">
+                View Reports <BarChart3 className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <FeatureCard
-            title="Invoices"
-            description="Create professional invoices for your clients"
-            icon={<FileText className="h-6 w-6" />}
-            href="/invoices"
-          />
-          <FeatureCard
-            title="Receipts"
-            description="Generate receipts for payments received"
-            icon={<Receipt className="h-6 w-6" />}
-            href="/receipts"
-          />
-          <FeatureCard
-            title="Delivery Notes"
-            description="Create delivery notes for your shipments"
-            icon={<TruckIcon className="h-6 w-6" />}
-            href="/delivery-notes"
-          />
-          <FeatureCard
-            title="Reports"
-            description="View statistics and reports of your documents"
-            icon={<BarChart3 className="h-6 w-6" />}
-            href="/reports"
-          />
-          <FeatureCard
-            title="Settings"
-            description="Configure your business details and preferences"
-            icon={<Settings className="h-6 w-6" />}
-            href="/settings"
-          />
-        </div>
+        {/* Decorative elements */}
+        <div className="absolute top-1/2 left-4 md:left-12 w-24 h-24 rounded-full bg-primary/5 -z-10"></div>
+        <div className="absolute bottom-1/4 right-4 md:right-12 w-32 h-32 rounded-full bg-primary/5 -z-10"></div>
+      </section>
 
-        <div className="flex justify-center mt-8">
-          <Button asChild size="lg">
+      {/* Features Section */}
+      <section className="py-16 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Everything You Need</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              ByteBills provides all the tools you need to manage your business documents efficiently.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <FeatureCard
+              title="Invoices"
+              description="Create professional invoices for your clients with customizable templates and automatic calculations."
+              icon={<FileText className="h-6 w-6" />}
+              href="/invoices"
+            />
+            <FeatureCard
+              title="Receipts"
+              description="Generate detailed receipts for payments received, with support for multiple payment methods."
+              icon={<Receipt className="h-6 w-6" />}
+              href="/receipts"
+            />
+            <FeatureCard
+              title="Delivery Notes"
+              description="Create delivery notes for your shipments with item tracking and delivery confirmation."
+              icon={<TruckIcon className="h-6 w-6" />}
+              href="/delivery-notes"
+            />
+            <FeatureCard
+              title="Reports"
+              description="View comprehensive statistics and reports of your business activities with visual charts."
+              icon={<BarChart3 className="h-6 w-6" />}
+              href="/reports"
+            />
+            <FeatureCard
+              title="Settings"
+              description="Configure your business details, preferences, and customize your document templates."
+              icon={<Settings className="h-6 w-6" />}
+              href="/settings"
+            />
+            <Card className="bg-primary/5 border-primary/20 transition-all hover:shadow-md">
+              <CardHeader>
+                <div className="flex items-center gap-2 text-primary">
+                  <CheckCircle className="h-6 w-6" />
+                  <CardTitle>Premium Features</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-foreground/80">
+                  Coming soon: Custom branding, advanced analytics, and more premium features.
+                </CardDescription>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+                  Stay Tuned
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className="py-16 bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Why Choose ByteBills?</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Our platform offers numerous benefits to streamline your business operations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <BenefitCard
+              title="Save Time"
+              description="Automate document creation and calculations to save hours of manual work."
+            />
+            <BenefitCard
+              title="Professional Image"
+              description="Present a professional image to your clients with beautifully designed documents."
+            />
+            <BenefitCard
+              title="Stay Organized"
+              description="Keep all your business documents organized in one secure place."
+            />
+            <BenefitCard
+              title="Track Performance"
+              description="Monitor your business performance with detailed reports and analytics."
+            />
+            <BenefitCard
+              title="Easy to Use"
+              description="Intuitive interface designed for business owners, not accountants."
+            />
+            <BenefitCard
+              title="Accessible Anywhere"
+              description="Access your documents from any device, anywhere, anytime."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 bg-gradient-to-b from-background to-primary/10">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
+            Join thousands of businesses already using ByteBills to streamline their document management.
+          </p>
+          <Button asChild size="lg" className="px-8">
             <Link href="/auth/login">
-              Get Started <ArrowRight className="ml-2 h-4 w-4" />
+              Get Started Now <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         </div>
-      </div>
+      </section>
     </main>
   )
 }
@@ -180,7 +172,7 @@ function FeatureCard({
   href: string
 }) {
   return (
-    <Card className="transition-all hover:shadow-md">
+    <Card className="transition-all hover:shadow-md hover:translate-y-[-5px] duration-300">
       <CardHeader>
         <div className="flex items-center gap-2">
           {icon}
@@ -188,7 +180,7 @@ function FeatureCard({
         </div>
       </CardHeader>
       <CardContent>
-        <CardDescription>{description}</CardDescription>
+        <CardDescription className="text-foreground/70">{description}</CardDescription>
       </CardContent>
       <CardFooter>
         <Button variant="outline" asChild className="w-full">
@@ -201,3 +193,11 @@ function FeatureCard({
   )
 }
 
+function BenefitCard({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="bg-background rounded-lg p-6 shadow-sm hover:shadow-md transition-all">
+      <h3 className="text-xl font-semibold mb-3">{title}</h3>
+      <p className="text-muted-foreground">{description}</p>
+    </div>
+  )
+}
