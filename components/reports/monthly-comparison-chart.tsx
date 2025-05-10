@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react"
 import { 
   Bar, 
-  BarChart, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
   ResponsiveContainer,
   Legend,
   TooltipProps,
@@ -15,8 +13,8 @@ import {
   ComposedChart
 } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
-import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, isSameMonth } from "date-fns"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 
 type MonthlyComparisonChartProps = {
   documents: any[]
@@ -171,4 +169,3 @@ function CustomTooltip({ active, payload, label }: TooltipProps<any, any>) {
 
   return null
 }
-chart

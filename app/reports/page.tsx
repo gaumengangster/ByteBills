@@ -4,19 +4,30 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format, subMonths, startOfMonth, endOfMonth, getYear, getMonth } from "date-fns"
-import { BarChart, FileText, Receipt, TruckIcon, DollarSign, Users, Calendar, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react'
+import { subMonths, getYear } from "date-fns"
+import { FileText, Receipt, TruckIcon, DollarSign, Users, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react'
 import { RevenueChart } from "@/components/reports/revenue-chart"
 import { DocumentsChart } from "@/components/reports/documents-chart"
 import { TopClientsTable } from "@/components/reports/top-clients-table"
 import { DocumentStatusChart } from "@/components/reports/document-status-chart"
 import { MonthlyComparisonChart } from "@/components/reports/monthly-comparison-chart"
+
+interface Document {
+  id: string;
+  type: 'invoices' | 'receipts' | 'deliveryNotes' | 'proformaInvoices';
+  status?: string;
+  [key: string]: any; // for other document properties
+}
+
+interface DocumentStatusChartProps {
+  documents: Document[];
+}
+
 
 export default function ReportsPage() {
   const { user, loading } = useAuth()
@@ -380,7 +391,7 @@ export default function ReportsPage() {
                     </CardHeader>
                     <CardContent>
                       <DocumentStatusChart 
-                        documents={reportData.documents.filter(doc => doc.type === "invoices")}
+                        documents={reportData.documents.filter((doc: Document) => doc.type === "invoices")}
                       />
                     </CardContent>
                   </Card>

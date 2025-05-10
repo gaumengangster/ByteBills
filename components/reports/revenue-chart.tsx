@@ -8,12 +8,11 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
   ResponsiveContainer,
   TooltipProps
 } from "recharts"
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, isSameDay, isSameMonth } from "date-fns"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, isSameDay } from "date-fns"
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 
 type RevenueChartProps = {
   documents: any[]

@@ -16,8 +16,8 @@ import {
   Legend
 } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
-import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, isSameMonth } from "date-fns"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 
 type DocumentsChartProps = {
   documents?: any[]
@@ -40,17 +40,23 @@ export function DocumentsChart({
   deliveryNotesCount,
   proformaInvoicesCount
 }: DocumentsChartProps) {
-  const [chartData, setChartData] = useState<any[]>([])
+  type ChartItem = {
+    name: string;
+    value: number;
+    color: string;
+  }
+
+  const [chartData, setChartData] = useState<ChartItem[]>([])
 
   useEffect(() => {
     // If we have counts, create a pie chart data
     if (typeof invoicesCount !== 'undefined') {
       const data = [
-        { name: "Invoices", value: invoicesCount, color: "#3b82f6" },
-        { name: "Receipts", value: receiptsCount, color: "#22c55e" },
-        { name: "Delivery Notes", value: deliveryNotesCount, color: "#f59e0b" },
-        { name: "Proforma", value: proformaInvoicesCount, color: "#a855f7" }
-      ].filter(item => item.value > 0)
+        { name: "Invoices", value: invoicesCount ?? 0, color: "#3b82f6" },
+        { name: "Receipts", value: receiptsCount ?? 0, color: "#22c55e" },
+        { name: "Delivery Notes", value: deliveryNotesCount ?? 0, color: "#f59e0b" },
+        { name: "Proforma", value: proformaInvoicesCount ?? 0, color: "#a855f7" }
+      ].filter((item): item is ChartItem => item.value > 0)
       
       setChartData(data)
       return
@@ -61,7 +67,6 @@ export function DocumentsChart({
       setChartData([])
       return
     }
-
     // Monthly data
     const months = eachMonthOfInterval({ start: startDate, end: endDate })
     
@@ -89,7 +94,7 @@ export function DocumentsChart({
       }
     })
 
-    setChartData(data)
+    setChartData(chartData)
   }, [documents, timeframe, startDate, endDate, invoicesCount, receiptsCount, deliveryNotesCount, proformaInvoicesCount])
 
   // If we have counts, render a pie chart
