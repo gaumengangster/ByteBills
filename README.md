@@ -41,13 +41,13 @@ ByteBills is a comprehensive web application designed to help businesses create,
 ## Screenshots
 
 <div align="center">
-  <img src="screenshots/dashboard.png" alt="Dashboard" width="45%" />
-  <img src="screenshots/invoice-form.png" alt="Invoice Form" width="45%" />
+  <img src="public/screenshots/dashboard.png" alt="Dashboard" width="45%" />
+  <img src="public/screenshots/invoice-form.png" alt="Invoice Form" width="45%" />
 </div>
 
 <div align="center">
-  <img src="screenshots/reports.png" alt="Reports" width="45%" />
-  <img src="screenshots/settings.png" alt="Settings" width="45%" />
+  <img src="public/screenshots/reports.png" alt="Reports" width="45%" />
+  <img src="public/screenshots/settings.png" alt="Settings" width="45%" />
 </div>
 
 ## Technology Stack
