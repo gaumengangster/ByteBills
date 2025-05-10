@@ -1,81 +1,107 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { format } from "date-fns"
-import { ArrowLeft, Download, Edit, Loader2 } from "lucide-react"
-import { doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
 import { useAuth } from "@/lib/auth-provider"
+import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
+import { doc, getDoc, deleteDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
+import { format } from "date-fns"
+import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
-import { use } from "react";
+import { use } from "react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [deliveryNote, setDeliveryNote] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loadingDeliveryNote, setLoadingDeliveryNote] = useState(true)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const { id } = use(params)
 
-  // Fetch delivery note
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth/login")
+    }
+  }, [user, loading, router])
+
   useEffect(() => {
     const fetchDeliveryNote = async () => {
       if (!user) return
 
       try {
-        const docRef = doc(db, "deliveryNotes", id)
-        const docSnap = await getDoc(docRef)
+        const deliveryNoteDoc = await getDoc(doc(db, "deliveryNotes", id))
 
-        if (docSnap.exists()) {
-          const data = docSnap.data()
-
-          // Check if this delivery note belongs to the current user
-          if (data.userId !== user.uid) {
-            toast({
-              title: "Access Denied",
-              description: "You don't have permission to view this delivery note",
-              variant: "destructive",
-            })
-            router.push("/delivery-notes")
-            return
-          }
-
-          setDeliveryNote({
-            id: docSnap.id,
-            ...data,
-          })
-        } else {
+        if (!deliveryNoteDoc.exists()) {
           toast({
-            title: "Not Found",
-            description: "The requested delivery note could not be found",
+            title: "Delivery note not found",
+            description: "The requested delivery note does not exist.",
             variant: "destructive",
           })
           router.push("/delivery-notes")
+          return
         }
+
+        const deliveryNoteData = {
+          id: deliveryNoteDoc.id,
+          userId: deliveryNoteDoc.data().userId,
+          ...deliveryNoteDoc.data(),
+        }
+
+        // Check if the delivery note belongs to the current user
+        if ((deliveryNoteData.userId as string) !== user.uid) {
+          toast({
+            title: "Access denied",
+            description: "You don't have permission to view this delivery note.",
+            variant: "destructive",
+          })
+          router.push("/delivery-notes")
+          return
+        }
+
+        setDeliveryNote(deliveryNoteData)
       } catch (error) {
         console.error("Error fetching delivery note:", error)
         toast({
           title: "Error",
-          description: "Failed to fetch delivery note. Please try again.",
+          description: "Failed to load delivery note. Please try again.",
           variant: "destructive",
         })
       } finally {
-        setIsLoading(false)
+        setLoadingDeliveryNote(false)
       }
     }
 
-    fetchDeliveryNote()
+    if (user && id) {
+      fetchDeliveryNote()
+    }
   }, [user, id, router])
 
-  // Handle download
-  const handleDownload = async () => {
+  const handleDownloadPDF = async () => {
+    setIsDownloading(true)
+
     try {
       const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, `delivery-note-${deliveryNote.deliveryNoteNumber}.pdf`)
+      downloadDeliveryNotePDF(pdfBlob, `DeliveryNote-${deliveryNote.deliveryNoteNumber}.pdf`)
+
+      toast({
+        title: "PDF generated",
+        description: "Your delivery note PDF has been downloaded.",
+      })
     } catch (error) {
       console.error("Error generating PDF:", error)
       toast({
@@ -83,161 +109,281 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
         description: "Failed to generate PDF. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsDownloading(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-6 flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+  const handleDelete = async () => {
+    try {
+      await deleteDoc(doc(db, "deliveryNotes", id))
+
+      toast({
+        title: "Delivery note deleted",
+        description: "The delivery note has been deleted successfully.",
+      })
+
+      router.push("/delivery-notes")
+    } catch (error) {
+      console.error("Error deleting delivery note:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete delivery note. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+    }
+  }
+
+  if (loading || loadingDeliveryNote) {
+    return <div className="flex min-h-screen items-center justify-center">Loading...</div>
   }
 
   if (!deliveryNote) {
-    return null
+    return <div className="flex min-h-screen items-center justify-center">Delivery note not found</div>
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center">
-          <Button variant="ghost" size="icon" asChild className="mr-2">
-            <Link href="/delivery-notes">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold">Delivery Note Details</h1>
-        </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
-          </Button>
-          <Button asChild>
-            <Link href={`/delivery-notes/${id}/edit`}>
-              <Edit className="h-4 w-4 mr-2" />
+    <>
+      <Navbar />
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Delivery Note #{deliveryNote.deliveryNoteNumber}</h1>
+            <div className="flex items-center mt-1">
+              <span className="text-muted-foreground">
+                {format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy")}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/delivery-notes")} className="mr-2">
+              <ArrowLeft className="h-5 w-5" />
+              <span className="sr-only">Back</span>
+            </Button>
+
+            <Button onClick={handleDownloadPDF} disabled={isDownloading}>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </>
+              )}
+            </Button>
+
+            <Button variant="outline" onClick={() => router.push(`/delivery-notes/${id}/edit`)}>
+              <Edit className="mr-2 h-4 w-4" />
               Edit
-            </Link>
-          </Button>
+            </Button>
+
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(true)} className="text-red-600">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <Card className="p-6 bg-white shadow-md">
-        <CardContent className="p-0">
-          <div className="flex justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">DELIVERY NOTE</h1>
-              <p className="text-sm mt-2">Delivery Note #: {deliveryNote.deliveryNoteNumber}</p>
-              <p className="text-sm">
-                Date:{" "}
-                {format(
-                  new Date(
-                    deliveryNote.deliveryDate.seconds
-                      ? deliveryNote.deliveryDate.seconds * 1000
-                      : deliveryNote.deliveryDate,
-                  ),
-                  "MMMM d, yyyy",
-                )}
-              </p>
-              {deliveryNote.invoiceReference && (
-                <p className="text-sm">Invoice Reference: {deliveryNote.invoiceReference}</p>
-              )}
-              {deliveryNote.orderReference && <p className="text-sm">Order Reference: {deliveryNote.orderReference}</p>}
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Delivery Note Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="font-medium mb-1">Delivery Note Number</h3>
+                    <p>{deliveryNote.deliveryNoteNumber}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-medium mb-1">Delivery Date</h3>
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                      {format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy")}
+                    </div>
+                  </div>
+                  {deliveryNote.invoiceReference && (
+                    <div>
+                      <h3 className="font-medium mb-1">Invoice Reference</h3>
+                      <p>{deliveryNote.invoiceReference}</p>
+                    </div>
+                  )}
+                  {deliveryNote.orderReference && (
+                    <div>
+                      <h3 className="font-medium mb-1">Order Reference</h3>
+                      <p>{deliveryNote.orderReference}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="text-right">
-              <h2 className="font-bold">{deliveryNote.companyDetails?.name}</h2>
-              {deliveryNote.companyDetails?.address && <p className="text-sm">{deliveryNote.companyDetails.address}</p>}
-              {(deliveryNote.companyDetails?.city || deliveryNote.companyDetails?.country) && (
-                <p className="text-sm">
-                  {[deliveryNote.companyDetails.city, deliveryNote.companyDetails.country].filter(Boolean).join(", ")}
-                </p>
-              )}
-              {deliveryNote.companyDetails?.phone && (
-                <p className="text-sm">Phone: {deliveryNote.companyDetails.phone}</p>
-              )}
-              {deliveryNote.companyDetails?.email && (
-                <p className="text-sm">Email: {deliveryNote.companyDetails.email}</p>
-              )}
-            </div>
-          </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Items</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md overflow-hidden">
+                  <div className="grid grid-cols-12 gap-4 p-4 font-medium bg-muted">
+                    <div className="col-span-6">Description</div>
+                    <div className="col-span-2 text-center">Quantity</div>
+                    <div className="col-span-4">Notes</div>
+                  </div>
 
-          <div className="mt-8">
-            <h3 className="font-bold">Deliver To:</h3>
-            <p>{deliveryNote.clientDetails?.name}</p>
-            {deliveryNote.clientDetails?.address && <p className="text-sm">{deliveryNote.clientDetails.address}</p>}
-            {(deliveryNote.clientDetails?.city || deliveryNote.clientDetails?.country) && (
-              <p className="text-sm">
-                {[deliveryNote.clientDetails.city, deliveryNote.clientDetails.country].filter(Boolean).join(", ")}
-              </p>
+                  <div className="divide-y">
+                    {deliveryNote.items.map((item: any, index: number) => (
+                      <div key={index} className="grid grid-cols-12 gap-4 p-4">
+                        <div className="col-span-6">{item.description}</div>
+                        <div className="col-span-2 text-center">{item.quantity}</div>
+                        <div className="col-span-4">{item.notes || "-"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {(deliveryNote.deliveryInstructions || deliveryNote.notes) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Additional Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {deliveryNote.deliveryInstructions && (
+                      <div>
+                        <h3 className="font-medium mb-1">Delivery Instructions</h3>
+                        <p className="text-muted-foreground">{deliveryNote.deliveryInstructions}</p>
+                      </div>
+                    )}
+                    {deliveryNote.notes && (
+                      <div>
+                        <h3 className="font-medium mb-1">Notes</h3>
+                        <p className="text-muted-foreground">{deliveryNote.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-            {deliveryNote.clientDetails?.phone && <p className="text-sm">Phone: {deliveryNote.clientDetails.phone}</p>}
-            {deliveryNote.clientDetails?.email && <p className="text-sm">Email: {deliveryNote.clientDetails.email}</p>}
           </div>
 
-          {deliveryNote.deliveryAddress && deliveryNote.deliveryAddress !== deliveryNote.clientDetails?.address && (
-            <div className="mt-4">
-              <h3 className="font-bold">Delivery Address:</h3>
-              <p className="text-sm">{deliveryNote.deliveryAddress}</p>
-            </div>
-          )}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Client Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-start">
+                    <User className="h-5 w-5 mr-2 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <h3 className="font-medium">{deliveryNote.clientDetails.name}</h3>
+                      {deliveryNote.clientDetails.address && (
+                        <p className="text-sm text-muted-foreground mt-1">{deliveryNote.clientDetails.address}</p>
+                      )}
+                    </div>
+                  </div>
 
-          <div className="mt-8">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border p-2 text-left">Description</th>
-                  <th className="border p-2 text-center">Quantity</th>
-                  <th className="border p-2 text-left">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deliveryNote.items?.map((item: any, index: number) => (
-                  <tr key={index} className={index % 2 === 1 ? "bg-gray-50" : ""}>
-                    <td className="border p-2">{item.description}</td>
-                    <td className="border p-2 text-center">{item.quantity}</td>
-                    <td className="border p-2">{item.notes || ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  {deliveryNote.clientDetails.email && (
+                    <div className="flex items-center">
+                      <Mail className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.clientDetails.email}</span>
+                    </div>
+                  )}
+
+                  {deliveryNote.clientDetails.phone && (
+                    <div className="flex items-center">
+                      <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.clientDetails.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {deliveryNote.deliveryAddress && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Delivery Address</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">{deliveryNote.deliveryAddress}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Company Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {deliveryNote.companyDetails.logo && (
+                    <img
+                      src={deliveryNote.companyDetails.logo || "/placeholder.svg"}
+                      alt={deliveryNote.companyDetails.name}
+                      className="h-12 object-contain mb-2"
+                    />
+                  )}
+
+                  <div>
+                    <h3 className="font-medium">{deliveryNote.companyDetails.name}</h3>
+                    {deliveryNote.companyDetails.address && (
+                      <p className="text-sm text-muted-foreground mt-1">{deliveryNote.companyDetails.address}</p>
+                    )}
+                    {(deliveryNote.companyDetails.city || deliveryNote.companyDetails.country) && (
+                      <p className="text-sm text-muted-foreground">
+                        {deliveryNote.companyDetails.city}
+                        {deliveryNote.companyDetails.city && deliveryNote.companyDetails.country && ", "}
+                        {deliveryNote.companyDetails.country}
+                      </p>
+                    )}
+                  </div>
+
+                  {deliveryNote.companyDetails.email && (
+                    <div className="flex items-center">
+                      <Mail className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.companyDetails.email}</span>
+                    </div>
+                  )}
+
+                  {deliveryNote.companyDetails.phone && (
+                    <div className="flex items-center">
+                      <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.companyDetails.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        </div>
+      </main>
 
-          {deliveryNote.deliveryInstructions && (
-            <div className="mt-6">
-              <h3 className="font-bold">Delivery Instructions:</h3>
-              <p className="text-sm mt-1">{deliveryNote.deliveryInstructions}</p>
-            </div>
-          )}
-
-          {deliveryNote.notes && (
-            <div className="mt-6">
-              <h3 className="font-bold">Notes:</h3>
-              <p className="text-sm mt-1">{deliveryNote.notes}</p>
-            </div>
-          )}
-
-          <div className="mt-8 grid grid-cols-2 gap-8">
-            <div>
-              <h3 className="font-bold">Delivered By:</h3>
-              <div className="mt-2">
-                <p className="mb-2">Name: ____________________</p>
-                <p className="mb-2">Signature: ________________</p>
-                <p>Date: ____________________</p>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-bold">Received By:</h3>
-              <div className="mt-2">
-                <p className="mb-2">Name: ____________________</p>
-                <p className="mb-2">Signature: ________________</p>
-                <p>Date: ____________________</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the delivery note.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

@@ -1,141 +1,217 @@
 "use client"
 
-import { format } from "date-fns"
-import { Download } from "lucide-react"
+import { useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { format } from "date-fns"
+import { Download, X } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
 
-interface DeliveryNotePreviewProps {
-  deliveryNote: any
+type DeliveryNotePreviewProps = {
+  isOpen: boolean
+  onClose: () => void
+  deliveryNoteData: any
+  companies: any[]
 }
 
-export function DeliveryNotePreview({ deliveryNote }: DeliveryNotePreviewProps) {
+export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, companies }: DeliveryNotePreviewProps) {
+  const [isPdfLoading, setIsPdfLoading] = useState(false)
+
+  // Find the selected company data
+  const selectedCompany = companies.find((c) => c.id === deliveryNoteData.companyId) || companies[0]
+
   const handleDownload = async () => {
+    setIsPdfLoading(true)
+
     try {
-      const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, `delivery-note-${deliveryNote.deliveryNoteNumber}.pdf`)
+      // Prepare the data for PDF generation
+      const pdfData = {
+        ...deliveryNoteData,
+        companyDetails: {
+          name: selectedCompany?.name || "",
+          address: selectedCompany?.businessDetails?.address || "",
+          city: selectedCompany?.businessDetails?.city || "",
+          country: selectedCompany?.businessDetails?.country || "",
+          email: selectedCompany?.businessDetails?.email || "",
+          phone: selectedCompany?.businessDetails?.phone || "",
+        },
+        clientDetails: {
+          name: deliveryNoteData.clientName,
+          address: deliveryNoteData.clientAddress || "",
+          email: deliveryNoteData.clientEmail || "",
+          phone: deliveryNoteData.clientPhone || "",
+        },
+      }
+
+      const pdfBlob = await generateDeliveryNotePDF(pdfData)
+      downloadDeliveryNotePDF(pdfBlob, `delivery-note-${deliveryNoteData.deliveryNoteNumber}.pdf`)
     } catch (error) {
       console.error("Error generating PDF:", error)
+    } finally {
+      setIsPdfLoading(false)
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={handleDownload} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Download PDF
-        </Button>
-      </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[800px]">
+        <DialogHeader>
+          <DialogTitle>Delivery Note Preview</DialogTitle>
+        </DialogHeader>
 
-      <Card className="p-8 bg-white shadow-md">
-        <div className="flex justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">DELIVERY NOTE</h1>
-            <p className="text-sm mt-2">Delivery Note #: {deliveryNote.deliveryNoteNumber}</p>
-            <p className="text-sm">
-              Date: {deliveryNote.deliveryDate ? format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy") : ""}
-            </p>
-            {deliveryNote.invoiceReference && (
-              <p className="text-sm">Invoice Reference: {deliveryNote.invoiceReference}</p>
+        <div className="max-h-[70vh] overflow-y-auto p-4 border rounded-md">
+          <div className="bg-white p-8" id="delivery-note-content">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h1 className="text-2xl font-bold mb-1">DELIVERY NOTE</h1>
+                <div className="text-muted-foreground">
+                  <div>Delivery Note # {deliveryNoteData.deliveryNoteNumber}</div>
+                  <div>
+                    Date:{" "}
+                    {deliveryNoteData.deliveryDate ? format(new Date(deliveryNoteData.deliveryDate), "PP") : "N/A"}
+                  </div>
+                  {deliveryNoteData.invoiceReference && <div>Invoice Ref: {deliveryNoteData.invoiceReference}</div>}
+                  {deliveryNoteData.orderReference && <div>Order Ref: {deliveryNoteData.orderReference}</div>}
+                </div>
+              </div>
+
+              <div className="text-right">
+                {selectedCompany.logo ? (
+                  <img
+                    src={selectedCompany.logo || "/placeholder.svg"}
+                    alt={selectedCompany.name}
+                    className="w-24 h-auto mb-2"
+                  />
+                ) : (
+                  <div className="text-xl font-bold mb-2">{selectedCompany.name}</div>
+                )}
+                <div className="text-sm text-muted-foreground">
+                  {selectedCompany.businessDetails?.address && <div>{selectedCompany.businessDetails.address}</div>}
+                  {(selectedCompany.businessDetails?.city || selectedCompany.businessDetails?.country) && (
+                    <div>
+                      {selectedCompany.businessDetails.city}
+                      {selectedCompany.businessDetails.city && selectedCompany.businessDetails.country && ", "}
+                      {selectedCompany.businessDetails.country}
+                    </div>
+                  )}
+                  {selectedCompany.businessDetails?.phone && <div>{selectedCompany.businessDetails.phone}</div>}
+                  {selectedCompany.businessDetails?.email && <div>{selectedCompany.businessDetails.email}</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div>
+                <h2 className="text-lg font-semibold mb-2">Deliver To:</h2>
+                <div>
+                  <div className="font-medium">{deliveryNoteData.clientName || "Client Name"}</div>
+                  {deliveryNoteData.clientAddress && (
+                    <div className="text-muted-foreground">{deliveryNoteData.clientAddress}</div>
+                  )}
+                  {deliveryNoteData.clientPhone && (
+                    <div className="text-muted-foreground">{deliveryNoteData.clientPhone}</div>
+                  )}
+                  {deliveryNoteData.clientEmail && (
+                    <div className="text-muted-foreground">{deliveryNoteData.clientEmail}</div>
+                  )}
+                </div>
+              </div>
+
+              {deliveryNoteData.deliveryAddress && (
+                <div>
+                  <h2 className="text-lg font-semibold mb-2">Delivery Address:</h2>
+                  <div className="text-muted-foreground">{deliveryNoteData.deliveryAddress}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-8">
+              <div className="bg-muted rounded-t-md overflow-hidden">
+                <div className="grid grid-cols-12 gap-4 p-4 font-medium">
+                  <div className="col-span-6">Description</div>
+                  <div className="col-span-2 text-center">Quantity</div>
+                  <div className="col-span-4">Notes</div>
+                </div>
+              </div>
+
+              <div className="divide-y border-x">
+                {(deliveryNoteData.items || []).map((item: any, index: number) => (
+                  <div key={index} className="grid grid-cols-12 gap-4 p-4">
+                    <div className="col-span-6">{item.description || "Item Description"}</div>
+                    <div className="col-span-2 text-center">{item.quantity || 0}</div>
+                    <div className="col-span-4">{item.notes || ""}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {(deliveryNoteData.deliveryInstructions || deliveryNoteData.notes) && (
+              <div className="space-y-4 mb-8">
+                {deliveryNoteData.deliveryInstructions && (
+                  <div>
+                    <h3 className="font-medium mb-2">Delivery Instructions:</h3>
+                    <p className="text-sm text-muted-foreground">{deliveryNoteData.deliveryInstructions}</p>
+                  </div>
+                )}
+
+                {deliveryNoteData.notes && (
+                  <div>
+                    <h3 className="font-medium mb-2">Notes:</h3>
+                    <p className="text-sm text-muted-foreground">{deliveryNoteData.notes}</p>
+                  </div>
+                )}
+              </div>
             )}
-            {deliveryNote.orderReference && <p className="text-sm">Order Reference: {deliveryNote.orderReference}</p>}
-          </div>
 
-          <div className="text-right">
-            <h2 className="font-bold">{deliveryNote.companyDetails?.name}</h2>
-            {deliveryNote.companyDetails?.address && <p className="text-sm">{deliveryNote.companyDetails.address}</p>}
-            {(deliveryNote.companyDetails?.city || deliveryNote.companyDetails?.country) && (
-              <p className="text-sm">
-                {[deliveryNote.companyDetails.city, deliveryNote.companyDetails.country].filter(Boolean).join(", ")}
-              </p>
-            )}
-            {deliveryNote.companyDetails?.phone && (
-              <p className="text-sm">Phone: {deliveryNote.companyDetails.phone}</p>
-            )}
-            {deliveryNote.companyDetails?.email && (
-              <p className="text-sm">Email: {deliveryNote.companyDetails.email}</p>
-            )}
-          </div>
-        </div>
+            <div className="grid grid-cols-2 gap-8 mt-8 pt-8 border-t">
+              <div>
+                <h3 className="font-medium mb-2">Delivered By:</h3>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name: ____________________</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Signature: ________________</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Date: ____________________</p>
+                  </div>
+                </div>
+              </div>
 
-        <div className="mt-8">
-          <h3 className="font-bold">Deliver To:</h3>
-          <p>{deliveryNote.clientDetails?.name}</p>
-          {deliveryNote.clientDetails?.address && <p className="text-sm">{deliveryNote.clientDetails.address}</p>}
-          {(deliveryNote.clientDetails?.city || deliveryNote.clientDetails?.country) && (
-            <p className="text-sm">
-              {[deliveryNote.clientDetails.city, deliveryNote.clientDetails.country].filter(Boolean).join(", ")}
-            </p>
-          )}
-          {deliveryNote.clientDetails?.phone && <p className="text-sm">Phone: {deliveryNote.clientDetails.phone}</p>}
-          {deliveryNote.clientDetails?.email && <p className="text-sm">Email: {deliveryNote.clientDetails.email}</p>}
-        </div>
+              <div>
+                <h3 className="font-medium mb-2">Received By:</h3>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name: ____________________</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Signature: ________________</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Date: ____________________</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        {deliveryNote.deliveryAddress && deliveryNote.deliveryAddress !== deliveryNote.clientDetails?.address && (
-          <div className="mt-4">
-            <h3 className="font-bold">Delivery Address:</h3>
-            <p className="text-sm">{deliveryNote.deliveryAddress}</p>
-          </div>
-        )}
-
-        <div className="mt-8">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2 text-left">Description</th>
-                <th className="border p-2 text-center">Quantity</th>
-                <th className="border p-2 text-left">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deliveryNote.items?.map((item: any, index: number) => (
-                <tr key={index} className={index % 2 === 1 ? "bg-gray-50" : ""}>
-                  <td className="border p-2">{item.description}</td>
-                  <td className="border p-2 text-center">{item.quantity}</td>
-                  <td className="border p-2">{item.notes || ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {deliveryNote.deliveryInstructions && (
-          <div className="mt-6">
-            <h3 className="font-bold">Delivery Instructions:</h3>
-            <p className="text-sm mt-1">{deliveryNote.deliveryInstructions}</p>
-          </div>
-        )}
-
-        {deliveryNote.notes && (
-          <div className="mt-6">
-            <h3 className="font-bold">Notes:</h3>
-            <p className="text-sm mt-1">{deliveryNote.notes}</p>
-          </div>
-        )}
-
-        <div className="mt-8 grid grid-cols-2 gap-8">
-          <div>
-            <h3 className="font-bold">Delivered By:</h3>
-            <div className="mt-2">
-              <p className="mb-2">Name: ____________________</p>
-              <p className="mb-2">Signature: ________________</p>
-              <p>Date: ____________________</p>
+            <div className="text-center mt-8 pt-8 border-t text-sm text-muted-foreground">
+              <p>Thank you for your business!</p>
             </div>
           </div>
-          <div>
-            <h3 className="font-bold">Received By:</h3>
-            <div className="mt-2">
-              <p className="mb-2">Name: ____________________</p>
-              <p className="mb-2">Signature: ________________</p>
-              <p>Date: ____________________</p>
-            </div>
-          </div>
         </div>
 
-        <div className="mt-8 text-center text-sm italic">Thank you for your business!</div>
-      </Card>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            <X className="mr-2 h-4 w-4" />
+            Close
+          </Button>
+          <Button onClick={handleDownload} disabled={isPdfLoading}>
+            <Download className="mr-2 h-4 w-4" />
+            {isPdfLoading ? "Generating PDF..." : "Download PDF"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
