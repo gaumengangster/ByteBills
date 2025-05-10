@@ -18,6 +18,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: { id: strin
   const router = useRouter()
   const [deliveryNote, setDeliveryNote] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { id } = params
 
   // Fetch delivery note
   useEffect(() => {
@@ -25,7 +26,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: { id: strin
       if (!user) return
 
       try {
-        const docRef = doc(db, "deliveryNotes", params.id)
+        const docRef = doc(db, "deliveryNotes", id)
         const docSnap = await getDoc(docRef)
 
         if (docSnap.exists()) {
@@ -67,7 +68,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: { id: strin
     }
 
     fetchDeliveryNote()
-  }, [user, params.id, router])
+  }, [user, id, router])
 
   // Handle download
   const handleDownload = async () => {
@@ -113,7 +114,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: { id: strin
             Download PDF
           </Button>
           <Button asChild>
-            <Link href={`/delivery-notes/${params.id}/edit`}>
+            <Link href={`/delivery-notes/${id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
