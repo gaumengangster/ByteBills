@@ -2,7 +2,7 @@ import jsPDF from "jspdf"
 import { format } from "date-fns"
 
 // Function to create a PDF directly without using html2canvas
-export async function generateInvoicePDF(invoice: any): Promise<Blob> {
+export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   // Create a new PDF document
   const pdf = new jsPDF("p", "mm", "a4")
   const pageWidth = pdf.internal.pageSize.getWidth()
@@ -20,18 +20,22 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   // Add company logo and info
   pdf.setFontSize(20)
   pdf.setFont("helvetica", "bold")
-  pdf.text("INVOICE", margin, y)
+  pdf.text("RECEIPT", margin, y)
   y += 10
 
   pdf.setFontSize(10)
   pdf.setFont("helvetica", "normal")
-  pdf.text(`Invoice #: ${invoice.invoiceNumber}`, margin, y)
+  pdf.text(`Receipt #: ${receipt.receiptNumber}`, margin, y)
   y += 5
-  pdf.text(`Date: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`Date: ${format(new Date(receipt.receiptDate), "MMMM d, yyyy")}`, margin, y)
   y += 5
-  pdf.text(`Due Date: ${format(new Date(invoice.dueDate), "MMMM d, yyyy")}`, margin, y)
-  y += 5
-  pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y)
+
+  if (receipt.invoiceReference) {
+    pdf.text(`Invoice Reference: ${receipt.invoiceReference}`, margin, y)
+    y += 5
+  }
+
+  pdf.text(`Payment Method: ${getPaymentMethodText(receipt.paymentMethod)}`, margin, y)
   y += 15
 
   // Company details on the right
@@ -41,61 +45,61 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   // Right-align all company details with proper positioning
   const rightMargin = pageWidth - margin
-  pdf.text(invoice.companyDetails.name, rightMargin, companyY, { align: "right" })
+  pdf.text(receipt.companyDetails.name, rightMargin, companyY, { align: "right" })
 
   pdf.setFontSize(9)
   pdf.setFont("helvetica", "normal")
   let companyDetailY = companyY + 5
 
-  if (invoice.companyDetails.address) {
-    pdf.text(invoice.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
+  if (receipt.companyDetails.address) {
+    pdf.text(receipt.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  if (invoice.companyDetails.city || invoice.companyDetails.country) {
-    const location = [invoice.companyDetails.city, invoice.companyDetails.country].filter(Boolean).join(", ")
+  if (receipt.companyDetails.city || receipt.companyDetails.country) {
+    const location = [receipt.companyDetails.city, receipt.companyDetails.country].filter(Boolean).join(", ")
     pdf.text(location, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  if (invoice.companyDetails.phone) {
-    pdf.text(`Phone: ${invoice.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+  if (receipt.companyDetails.phone) {
+    pdf.text(`Phone: ${receipt.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  if (invoice.companyDetails.email) {
-    pdf.text(`Email: ${invoice.companyDetails.email}`, rightMargin, companyDetailY)
+  if (receipt.companyDetails.email) {
+    pdf.text(`Email: ${receipt.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
   }
 
   // Client information
   pdf.setFontSize(12)
   pdf.setFont("helvetica", "bold")
-  pdf.text("Bill To:", margin, y)
+  pdf.text("Received From:", margin, y)
   y += 7
 
   pdf.setFontSize(10)
   pdf.setFont("helvetica", "normal")
-  pdf.text(invoice.clientDetails.name, margin, y)
+  pdf.text(receipt.clientDetails.name, margin, y)
   y += 5
 
-  if (invoice.clientDetails.address) {
-    pdf.text(invoice.clientDetails.address, margin, y)
+  if (receipt.clientDetails.address) {
+    pdf.text(receipt.clientDetails.address, margin, y)
     y += 5
   }
 
-  if (invoice.clientDetails.phone) {
-    pdf.text(`Phone: ${invoice.clientDetails.phone}`, margin, y)
+  if (receipt.clientDetails.phone) {
+    pdf.text(`Phone: ${receipt.clientDetails.phone}`, margin, y)
     y += 5
   }
 
-  if (invoice.clientDetails.email) {
-    pdf.text(`Email: ${invoice.clientDetails.email}`, margin, y)
+  if (receipt.clientDetails.email) {
+    pdf.text(`Email: ${receipt.clientDetails.email}`, margin, y)
     y += 5
   }
 
   y += 10
 
-  // Invoice items table
+  // Receipt items table
   const tableTop = y
   const tableLeft = margin
   const tableRight = pageWidth - margin
@@ -121,7 +125,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   // Table rows
   pdf.setFont("helvetica", "normal")
-  invoice.items.forEach((item: any, index: number) => {
+  receipt.items.forEach((item: any, index: number) => {
     const rowHeight = 8
 
     // Add alternating row background
@@ -153,7 +157,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   pdf.text("Subtotal:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.subtotal),
+    formatCurrency(receipt.subtotal || calculateSubtotal(receipt)),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
@@ -162,7 +166,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   pdf.text("Tax:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.tax),
+    formatCurrency(receipt.tax || calculateTax(receipt)),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
@@ -171,40 +175,28 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.setFillColor(230, 230, 230)
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   pdf.setFont("helvetica", "bold")
-  pdf.text("Total:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text("Total Paid:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.total),
+    formatCurrency(receipt.total || calculateTotal(receipt)),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 15
 
-  // Notes and terms
-  if (invoice.notes || invoice.terms) {
+  // Notes
+  if (receipt.notes) {
     if (y > pageHeight - 60) {
       pdf.addPage()
       y = margin
     }
 
-    if (invoice.notes) {
-      pdf.setFont("helvetica", "bold")
-      pdf.text("Notes:", margin, y)
-      y += 7
+    pdf.setFont("helvetica", "bold")
+    pdf.text("Notes:", margin, y)
+    y += 7
 
-      pdf.setFont("helvetica", "normal")
-      y = addWrappedText(invoice.notes, margin, y, tableWidth, 5)
-      y += 10
-    }
-
-    if (invoice.terms) {
-      pdf.setFont("helvetica", "bold")
-      pdf.text("Terms & Conditions:", margin, y)
-      y += 7
-
-      pdf.setFont("helvetica", "normal")
-      y = addWrappedText(invoice.terms, margin, y, tableWidth, 5)
-      y += 10
-    }
+    pdf.setFont("helvetica", "normal")
+    y = addWrappedText(receipt.notes, margin, y, tableWidth, 5)
+    y += 10
   }
 
   // Footer
@@ -221,7 +213,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   return pdf.output("blob")
 }
 
-export function downloadPDF(blob: Blob, filename: string): void {
+export function downloadReceiptPDF(blob: Blob, filename: string): void {
   // Create a URL for the blob
   const url = URL.createObjectURL(blob)
 
@@ -249,4 +241,44 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount)
+}
+
+// Helper function to get payment method text
+function getPaymentMethodText(method: string): string {
+  switch (method) {
+    case "cash":
+      return "Cash"
+    case "card":
+      return "Credit/Debit Card"
+    case "bank":
+      return "Bank Transfer"
+    case "paypal":
+      return "PayPal"
+    case "other":
+      return "Other"
+    default:
+      return method
+  }
+}
+
+// Helper function to calculate subtotal
+function calculateSubtotal(receipt: any): number {
+  return receipt.items.reduce((sum: number, item: any) => {
+    const quantity = Number(item.quantity) || 0
+    const unitPrice = Number(item.unitPrice) || 0
+    return sum + quantity * unitPrice
+  }, 0)
+}
+
+// Helper function to calculate tax
+function calculateTax(receipt: any): number {
+  const subtotal = calculateSubtotal(receipt)
+  return subtotal * 0.1 // 10% tax rate example
+}
+
+// Helper function to calculate total
+function calculateTotal(receipt: any): number {
+  const subtotal = calculateSubtotal(receipt)
+  const tax = calculateTax(receipt)
+  return subtotal + tax
 }
