@@ -71,7 +71,7 @@ ByteBills is a comprehensive web application designed to help businesses create,
 
 1. Clone the repository:
    \`\`\`bash
-   git clone https://github.com/yourusername/bytebills.git
+   git clone https://github.com/AdamUzDel/ByteBills.git
    cd bytebills
    \`\`\`
 
@@ -138,5 +138,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ---
 
 <p align="center">
-  Made with ❤️ by Your Adam from BytebaseTech
+  Made with ❤️ by Adam from BytebaseTech
 </p>
