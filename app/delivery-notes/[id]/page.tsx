@@ -12,13 +12,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
+import { use } from "react";
 
-export default function DeliveryNoteDetailPage({ params }: { params: { id: string } }) {
+export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = useAuth()
   const router = useRouter()
   const [deliveryNote, setDeliveryNote] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const { id } = params
+  const { id } = use(params)
 
   // Fetch delivery note
   useEffect(() => {
