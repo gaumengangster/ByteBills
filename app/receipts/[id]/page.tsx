@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { use } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,14 +24,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export default function ReceiptDetailPage({ params }: { params: { id: string } }) {
+export default function ReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [receipt, setReceipt] = useState<any>(null)
   const [loadingReceipt, setLoadingReceipt] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const { id } = params
+  const { id } = use(params)
 
   useEffect(() => {
     if (!loading && !user) {
