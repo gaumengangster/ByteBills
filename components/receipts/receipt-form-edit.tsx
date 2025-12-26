@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { addDoc, collection } from "firebase/firestore"
+import { updateDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,11 +22,13 @@ import { ReceiptPreview } from "./receipt-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DocumentSettings } from "@/components/document-settings/document-settings" // Added import
+import { DocumentSettings } from "@/components/document-settings/document-settings"
 
-type ReceiptFormProps = {
+type ReceiptFormEditProps = {
   userId: string
   companies: any[]
+  receipt: any
+  receiptId: string
 }
 
 // Create a schema for receipt validation
@@ -56,40 +58,31 @@ const receiptSchema = z.object({
 
 type ReceiptFormValues = z.infer<typeof receiptSchema>
 
-export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
+export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: ReceiptFormEditProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
-  const [currency, setCurrency] = useState("USD")
-  const [taxPercentage, setTaxPercentage] = useState(10)
-  const [formData, setFormData] = useState<Partial<ReceiptFormValues>>({
-    companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
-    receiptNumber: generateReceiptNumber(),
-    receiptDate: new Date(),
-    paymentMethod: "card",
-    items: [{ description: "", quantity: 1, unitPrice: 0 }],
-    notes: "",
-    invoiceReference: "",
-  })
+  const [currency, setCurrency] = useState(receipt?.currency || "USD")
+  const [taxPercentage, setTaxPercentage] = useState(receipt?.taxPercentage || 10)
 
-  // Set up the form
+  // Set up the form with existing receipt data
   const form = useForm<ReceiptFormValues>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: formData as ReceiptFormValues,
+    defaultValues: {
+      companyId: receipt?.companyId,
+      clientName: receipt?.clientDetails?.name,
+      clientEmail: receipt?.clientDetails?.email || "",
+      clientPhone: receipt?.clientDetails?.phone || "",
+      clientAddress: receipt?.clientDetails?.address || "",
+      receiptNumber: receipt?.receiptNumber,
+      receiptDate: new Date(receipt?.receiptDate),
+      paymentMethod: receipt?.paymentMethod,
+      items: receipt?.items || [{ description: "", quantity: 1, unitPrice: 0 }],
+      notes: receipt?.notes || "",
+      invoiceReference: receipt?.invoiceReference || "",
+    },
   })
-
-  function generateReceiptNumber() {
-    const prefix = "RCT"
-    const randomNumbers = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")
-    const date = new Date()
-    const year = date.getFullYear().toString().substr(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, "0")
-
-    return `${prefix}-${year}${month}-${randomNumbers}`
-  }
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
@@ -104,9 +97,8 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
 
-      // Prepare receipt data
-      const receiptData = {
-        userId,
+      // Prepare updated receipt data
+      const updatedReceiptData = {
         companyId: values.companyId,
         companyDetails: {
           name: selectedCompany?.name || "",
@@ -134,26 +126,24 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
         taxPercentage,
         notes: values.notes || "",
         invoiceReference: values.invoiceReference || "",
-        status: "completed",
-        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
 
-      // Save to Firestore
-      const docRef = await addDoc(collection(db, "receipts"), receiptData)
+      // Update in Firestore
+      await updateDoc(doc(db, "receipts", receiptId), updatedReceiptData)
 
       toast({
         title: "Success",
-        description: `Receipt ${values.receiptNumber} has been created successfully.`,
+        description: `Receipt ${values.receiptNumber} has been updated successfully.`,
       })
 
       // Navigate to receipt view
-      router.push(`/receipts/${docRef.id}`)
+      router.push(`/receipts/${receiptId}`)
     } catch (error) {
-      console.error("Error creating receipt:", error)
+      console.error("Error updating receipt:", error)
       toast({
         title: "Error",
-        description: "Failed to create receipt. Please try again.",
+        description: "Failed to update receipt. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -162,10 +152,6 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
   }
 
   const nextStep = () => {
-    // Get current form values
-    const currentValues = form.getValues()
-    setFormData(currentValues)
-
     // Validate current step before proceeding
     if (currentStep === 1) {
       const companyIdValid = form.trigger("companyId")
@@ -182,9 +168,6 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
   }
 
   const prevStep = () => {
-    // Get current form values
-    const currentValues = form.getValues()
-    setFormData(currentValues)
     setCurrentStep(currentStep - 1)
   }
 
@@ -375,12 +358,12 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
+                      Updating...
                     </>
                   ) : (
                     <>
                       <Check className="mr-2 h-4 w-4" />
-                      Create Receipt
+                      Update Receipt
                     </>
                   )}
                 </Button>
@@ -395,7 +378,10 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
           isOpen={isPreviewOpen}
           onClose={() => setIsPreviewOpen(false)}
           receiptData={form.getValues()}
-          companies={companies} currency={""} taxPercentage={0}        />
+          companies={companies}
+          currency={currency}
+          taxPercentage={taxPercentage}
+        />
       )}
     </div>
   )

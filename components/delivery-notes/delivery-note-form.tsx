@@ -21,6 +21,7 @@ import { DeliveryNoteItems } from "./delivery-note-items"
 import { DeliveryNotePreview } from "./delivery-note-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { DocumentSettings } from "@/components/document-settings/document-settings" // Added DocumentSettings import
 
 type DeliveryNoteFormProps = {
   userId?: string
@@ -61,6 +62,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
+  const [currency, setCurrency] = useState("USD") // Added currency state
   const [formData, setFormData] = useState<Partial<DeliveryNoteFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
     deliveryNoteNumber: generateDeliveryNoteNumber(),
@@ -125,6 +127,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
         notes: values.notes || "",
         invoiceReference: values.invoiceReference || "",
         orderReference: values.orderReference || "",
+        currency, // Store currency for consistency
         status: "delivered",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -134,7 +137,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
       const docRef = await addDoc(collection(db, "deliveryNotes"), deliveryNoteData)
 
       toast({
-        title: "Delivery note created",
+        title: "Success",
         description: `Delivery note ${values.deliveryNoteNumber} has been created successfully.`,
       })
 
@@ -224,6 +227,8 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Delivery Note Details</h3>
+
+                  <DocumentSettings currency={currency} onCurrencyChange={setCurrency} hidesTaxSelector={true} />
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField

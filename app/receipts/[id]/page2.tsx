@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { use } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,23 +154,9 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const formatCurrency = (amount: number) => {
-    const currency = receipt?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: currencyMap[currency] || "USD",
+      currency: "USD",
     }).format(amount)
   }
 
@@ -422,6 +409,3 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
     </>
   )
 }
-
-
-

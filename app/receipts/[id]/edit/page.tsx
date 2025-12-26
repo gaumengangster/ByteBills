@@ -8,16 +8,16 @@ import { Button } from "@/components/ui/button"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { toast } from "@/components/ui/use-toast"
-import { InvoiceForm } from "@/components/invoices/invoice-form-edit"
+import { ReceiptFormEdit } from "@/components/receipts/receipt-form-edit"
 import { ArrowLeft, Loader2 } from "lucide-react"
 
-export default function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [invoice, setInvoice] = useState<any>(null)
+  const [receipt, setReceipt] = useState<any>(null)
   const [companies, setCompanies] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const { id } = use(params);
+  const { id } = use(params)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,36 +30,36 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
       if (!user) return
 
       try {
-        // Fetch invoice
-        const invoiceDoc = await getDoc(doc(db, "invoices", id))
+        // Fetch receipt
+        const receiptDoc = await getDoc(doc(db, "receipts", id))
 
-        if (!invoiceDoc.exists()) {
+        if (!receiptDoc.exists()) {
           toast({
-            title: "Invoice not found",
-            description: "The requested invoice does not exist.",
+            title: "Receipt not found",
+            description: "The requested receipt does not exist.",
             variant: "destructive",
           })
-          router.push("/invoices")
+          router.push("/receipts")
           return
         }
 
-        const invoiceData = {
-          id: invoiceDoc.id,
-          ...invoiceDoc.data(),
+        const receiptData = {
+          id: receiptDoc.id,
+          ...receiptDoc.data(),
         }
 
-        // Check if the invoice belongs to the current user
-        if (invoiceData.id !== user.uid) {
+        // Check if the receipt belongs to the current user
+        if (receiptData.id !== user.uid) {
           toast({
             title: "Access denied",
-            description: "You don't have permission to edit this invoice.",
+            description: "You don't have permission to edit this receipt.",
             variant: "destructive",
           })
-          router.push("/invoices")
+          router.push("/receipts")
           return
         }
 
-        setInvoice(invoiceData)
+        setReceipt(receiptData)
 
         // Fetch user data to get companies
         const userDoc = await getDoc(doc(db, "bytebills-users", user.uid))
@@ -71,7 +71,7 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
         console.error("Error fetching data:", error)
         toast({
           title: "Error",
-          description: "Failed to load invoice data. Please try again.",
+          description: "Failed to load receipt data. Please try again.",
           variant: "destructive",
         })
       } finally {
@@ -93,8 +93,8 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
     )
   }
 
-  if (!invoice || companies.length === 0) {
-    return <div className="flex min-h-screen items-center justify-center">Invoice data not found</div>
+  if (!receipt || companies.length === 0) {
+    return <div className="flex min-h-screen items-center justify-center">Receipt data not found</div>
   }
 
   return (
@@ -102,21 +102,21 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
       <Navbar />
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center mb-8">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/invoices/${id}`)} className="mr-2">
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/receipts/${id}`)} className="mr-2">
             <ArrowLeft className="h-5 w-5" />
             <span className="sr-only">Back</span>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Edit Invoice</h1>
-            <p className="text-muted-foreground">Update invoice #{invoice.invoiceNumber}</p>
+            <h1 className="text-3xl font-bold">Edit Receipt</h1>
+            <p className="text-muted-foreground">Update receipt #{receipt.receiptNumber}</p>
           </div>
         </div>
 
         {user ? (
-              <InvoiceForm userId={user.uid} companies={companies} invoice={invoice} invoiceId={id} />
-            ) : (
-              <p>Loading user data...</p> 
-            )}
+          <ReceiptFormEdit userId={user.uid} companies={companies} receipt={receipt} receiptId={id} />
+        ) : (
+          <p>Loading user data...</p>
+        )}
       </main>
     </>
   )

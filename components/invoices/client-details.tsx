@@ -11,7 +11,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/comp
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { UserPlus } from "lucide-react"
+import { UserPlus, Check } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 
 type ClientDetailsProps = {
   form: UseFormReturn<any>
@@ -54,6 +55,8 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
     },
   ])
 
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setNewClient({
       ...newClient,
@@ -80,7 +83,7 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
     setIsAddClientDialogOpen(false)
 
     toast({
-      title: "Client added",
+      title: "Success",
       description: `${newClient.name} has been added to your clients.`,
     })
 
@@ -101,6 +104,7 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
       form.setValue("clientEmail", selectedClient.email)
       form.setValue("clientPhone", selectedClient.phone)
       form.setValue("clientAddress", selectedClient.address)
+      setSelectedClientId(clientId)
     }
   }
 
@@ -286,13 +290,17 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
                   {savedClients.map((client) => (
                     <div
                       key={client.id}
-                      className="flex items-start p-4 border rounded-md hover:bg-accent cursor-pointer"
                       onClick={() => selectSavedClient(client.id)}
+                      className={cn(
+                        "flex items-start p-4 border rounded-md cursor-pointer transition-all duration-200",
+                        selectedClientId === client.id ? "bg-primary/10 border-primary shadow-sm" : "hover:bg-accent",
+                      )}
                     >
                       <div className="flex-1">
                         <h4 className="font-medium">{client.name}</h4>
                         <p className="text-sm text-muted-foreground">{client.email}</p>
                       </div>
+                      {selectedClientId === client.id && <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" />}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -300,6 +308,7 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
                           e.stopPropagation()
                           selectSavedClient(client.id)
                         }}
+                        className="ml-2"
                       >
                         Select
                       </Button>
@@ -314,4 +323,3 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
     </Card>
   )
 }
-

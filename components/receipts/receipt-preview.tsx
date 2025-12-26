@@ -11,19 +11,41 @@ type ReceiptPreviewProps = {
   onClose: () => void
   receiptData: any
   companies: any[]
+  currency: string // Added currency prop
+  taxPercentage: number // Added tax percentage prop
 }
 
-export function ReceiptPreview({ isOpen, onClose, receiptData, companies }: ReceiptPreviewProps) {
+export function ReceiptPreview({
+  isOpen,
+  onClose,
+  receiptData,
+  companies,
+  currency,
+  taxPercentage,
+}: ReceiptPreviewProps) {
   const [isPdfLoading, setIsPdfLoading] = useState(false)
 
   // Find the selected company data
   const selectedCompany = companies.find((c) => c.id === receiptData.companyId) || companies[0]
 
-  // Format currency
   const formatCurrency = (amount: number) => {
+    const currencyMap: Record<string, string> = {
+      UGX: "UGX",
+      USD: "USD",
+      EUR: "EUR",
+      GBP: "GBP",
+      JPY: "JPY",
+      AUD: "AUD",
+      CAD: "CAD",
+      CHF: "CHF",
+      CNY: "CNY",
+      INR: "INR",
+      MXN: "MXN",
+    }
+
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: currencyMap[currency] || "USD",
     }).format(amount)
   }
 
@@ -38,28 +60,11 @@ export function ReceiptPreview({ isOpen, onClose, receiptData, companies }: Rece
   }
 
   const calculateTax = () => {
-    return calculateSubtotal() * 0.1 // 10% tax rate example
+    return calculateSubtotal() * (taxPercentage / 100)
   }
 
   const calculateTotal = () => {
     return calculateSubtotal() + calculateTax()
-  }
-
-  const getPaymentMethodText = (method: string) => {
-    switch (method) {
-      case "cash":
-        return "Cash"
-      case "card":
-        return "Credit/Debit Card"
-      case "bank":
-        return "Bank Transfer"
-      case "paypal":
-        return "PayPal"
-      case "other":
-        return "Other"
-      default:
-        return method
-    }
   }
 
   const handleDownload = () => {
@@ -175,7 +180,7 @@ export function ReceiptPreview({ isOpen, onClose, receiptData, companies }: Rece
                       <span>{formatCurrency(calculateSubtotal())}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax (10%):</span>
+                      <span className="text-muted-foreground">Tax ({taxPercentage}%):</span>
                       <span>{formatCurrency(calculateTax())}</span>
                     </div>
                     <div className="flex justify-between font-medium pt-2 border-t">
@@ -213,4 +218,21 @@ export function ReceiptPreview({ isOpen, onClose, receiptData, companies }: Rece
       </DialogContent>
     </Dialog>
   )
+}
+
+function getPaymentMethodText(method: string): string {
+  switch (method) {
+    case "cash":
+      return "Cash"
+    case "card":
+      return "Credit/Debit Card"
+    case "bank":
+      return "Bank Transfer"
+    case "paypal":
+      return "PayPal"
+    case "other":
+      return "Other"
+    default:
+      return method
+  }
 }

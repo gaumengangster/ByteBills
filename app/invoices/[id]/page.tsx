@@ -6,20 +6,19 @@ import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
-import { use } from "react";
 
-export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
-  const { id } = use(params)
+  const { id } = params
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,8 +34,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         const invoiceDoc = await getDoc(doc(db, "invoices", id))
 
         if (!invoiceDoc.exists()) {
-          toast("Invoice not found", {
+          toast({
+            title: "Invoice not found",
             description: "The requested invoice does not exist.",
+            variant: "destructive",
           })
           router.push("/invoices")
           return
@@ -50,8 +51,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
         // Check if the invoice belongs to the current user
         if ((invoiceData.userId as string) !== user.uid) {
-          toast("Access denied", {
+          toast({
+            title: "Access denied",
             description: "You don't have permission to view this invoice.",
+            variant: "destructive",
           })
           router.push("/invoices")
           return
@@ -60,8 +63,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         setInvoice(invoiceData)
       } catch (error) {
         console.error("Error fetching invoice:", error)
-        toast("Error", {
+        toast({
+          title: "Error",
           description: "Failed to load invoice. Please try again.",
+          variant: "destructive",
         })
       } finally {
         setLoadingInvoice(false)
@@ -88,13 +93,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         updatedAt: new Date().toISOString(),
       })
 
-      toast("Status updated", {
+      toast({
+        title: "Status updated",
         description: `Invoice status has been updated to ${newStatus}.`,
       })
     } catch (error) {
       console.error("Error updating status:", error)
-      toast("Error", {
+      toast({
+        title: "Error",
         description: "Failed to update invoice status. Please try again.",
+        variant: "destructive",
       })
     }
   }
@@ -115,9 +123,23 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const formatCurrency = (amount: number) => {
+    const currency = invoice?.currency || "USD"
+    const currencyMap: { [key: string]: string } = {
+      USD: "USD",
+      EUR: "EUR",
+      GBP: "GBP",
+      JPY: "JPY",
+      AUD: "AUD",
+      CAD: "CAD",
+      CHF: "CHF",
+      CNY: "CNY",
+      INR: "INR",
+      MXN: "MXN",
+      UGX: "UGX",
+    }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: currencyMap[currency] || "USD",
     }).format(amount)
   }
 
@@ -147,8 +169,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           {user ?
             (<InvoiceActions invoice={invoice} userId={user.uid} onStatusChange={handleStatusChange} />)
             : ( <p>Loading user data...</p> )
-          }
-        </div>
+          }        
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">

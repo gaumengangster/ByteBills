@@ -21,6 +21,7 @@ import { InvoiceItems } from "./invoice-items"
 import { InvoicePreview } from "./invoice-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { DocumentSettings } from "@/components/document-settings/document-settings" // Added import for DocumentSettings
 
 type InvoiceFormProps = {
   userId: string
@@ -61,6 +62,8 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
+  const [currency, setCurrency] = useState("USD")
+  const [taxPercentage, setTaxPercentage] = useState(10)
   const [formData, setFormData] = useState<Partial<InvoiceFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
     invoiceNumber: generateInvoiceNumber(),
@@ -96,7 +99,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     try {
       // Calculate totals
       const subtotal = values.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-      const tax = subtotal * 0.1 // Example: 10% tax
+      const tax = subtotal * (taxPercentage / 100)
       const total = subtotal + tax
 
       // Get selected company
@@ -128,6 +131,8 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         subtotal,
         tax,
         total,
+        currency,
+        taxPercentage,
         notes: values.notes || "",
         terms: values.terms || "",
         status: "pending", // pending, paid, overdue, cancelled
@@ -139,7 +144,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
       const docRef = await addDoc(collection(db, "invoices"), invoiceData)
 
       toast({
-        title: "Invoice created",
+        title: "Success",
         description: `Invoice ${values.invoiceNumber} has been created successfully.`,
       })
 
@@ -230,6 +235,13 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Invoice Details</h3>
 
+                  <DocumentSettings
+                    currency={currency}
+                    onCurrencyChange={setCurrency}
+                    taxPercentage={taxPercentage}
+                    onTaxPercentageChange={setTaxPercentage}
+                  />
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
@@ -302,7 +314,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
                   <div className="space-y-2">
                     <h4 className="font-medium">Invoice Items</h4>
-                    <InvoiceItems form={form} />
+                    <InvoiceItems form={form} currency={currency} taxPercentage={taxPercentage} />
                   </div>
                 </div>
               </CardContent>
@@ -392,4 +404,3 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     </div>
   )
 }
-

@@ -175,24 +175,10 @@ export default function ReceiptsPage() {
     }
   }
 
-  const formatCurrency = (amount: number, receipt?: any) => {
-    const currency = receipt?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: currencyMap[currency] || "USD",
+      currency: "USD",
     }).format(amount)
   }
 
@@ -303,7 +289,7 @@ export default function ReceiptsPage() {
                     <TableCell>{format(new Date(receipt.receiptDate), "MMM d, yyyy")}</TableCell>
                     <TableCell>{getPaymentMethodText(receipt.paymentMethod)}</TableCell>
                     <TableCell>{receipt.invoiceReference || "-"}</TableCell>
-                    <TableCell>{formatCurrency(receipt.total, receipt)}</TableCell>
+                    <TableCell>{formatCurrency(receipt.total)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

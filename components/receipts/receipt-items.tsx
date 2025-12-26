@@ -4,14 +4,16 @@ import type { UseFormReturn } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FormField, FormControl, FormItem, FormMessage } from "@/components/ui/form"
-import { Plus, Minus, DollarSign } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 import { useFieldArray } from "react-hook-form"
 
 type ReceiptItemsProps = {
   form: UseFormReturn<any>
+  currency: string // Added currency prop
+  taxPercentage: number // Added tax percentage prop
 }
 
-export function ReceiptItems({ form }: ReceiptItemsProps) {
+export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProps) {
   const { fields, append, remove } = useFieldArray({
     name: "items",
     control: form.control,
@@ -31,7 +33,7 @@ export function ReceiptItems({ form }: ReceiptItemsProps) {
   }
 
   const calculateTax = () => {
-    return calculateSubtotal() * 0.1 // 10% tax rate example
+    return calculateSubtotal() * (taxPercentage / 100)
   }
 
   const calculateTotal = () => {
@@ -39,9 +41,23 @@ export function ReceiptItems({ form }: ReceiptItemsProps) {
   }
 
   const formatCurrency = (amount: number) => {
+    const currencyMap: Record<string, string> = {
+      UGX: "UGX",
+      USD: "USD",
+      EUR: "EUR",
+      GBP: "GBP",
+      JPY: "JPY",
+      AUD: "AUD",
+      CAD: "CAD",
+      CHF: "CHF",
+      CNY: "CNY",
+      INR: "INR",
+      MXN: "MXN",
+    }
+
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: currencyMap[currency] || "USD",
     }).format(amount)
   }
 
@@ -105,12 +121,14 @@ export function ReceiptItems({ form }: ReceiptItemsProps) {
                     <FormItem>
                       <FormControl>
                         <div className="relative">
-                          <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            {currency}
+                          </span>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            className="pl-8 text-right"
+                            className="pl-12 text-right"
                             {...field}
                             onChange={(e) => {
                               const value = Number.parseFloat(e.target.value)
@@ -125,7 +143,7 @@ export function ReceiptItems({ form }: ReceiptItemsProps) {
                 />
               </div>
 
-              <div className="col-span-1 text-right">
+              <div className="col-span-1 text-right text-sm">
                 {formatCurrency(
                   (form.getValues(`items.${index}.quantity`) || 0) * (form.getValues(`items.${index}.unitPrice`) || 0),
                 )}
@@ -150,16 +168,16 @@ export function ReceiptItems({ form }: ReceiptItemsProps) {
           Add Item
         </Button>
 
-        <div className="space-y-2 min-w-[200px]">
-          <div className="flex justify-between">
+        <div className="space-y-2 min-w-[200px] p-4 bg-muted rounded-md">
+          <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal:</span>
-            <span>{formatCurrency(calculateSubtotal())}</span>
+            <span className="font-medium">{formatCurrency(calculateSubtotal())}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Tax (10%):</span>
-            <span>{formatCurrency(calculateTax())}</span>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Tax ({taxPercentage}%):</span>
+            <span className="font-medium">{formatCurrency(calculateTax())}</span>
           </div>
-          <div className="flex justify-between font-medium pt-2 border-t">
+          <div className="flex justify-between font-semibold pt-2 border-t">
             <span>Total:</span>
             <span>{formatCurrency(calculateTotal())}</span>
           </div>
