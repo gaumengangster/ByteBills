@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
@@ -13,12 +13,12 @@ import { format } from "date-fns"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
 
-export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
+export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
-  const { id } = params
+  const { id } = use(params)
 
   useEffect(() => {
     if (!loading && !user) {
