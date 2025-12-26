@@ -390,7 +390,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
 
                   <div className="space-y-2">
                     <h4 className="font-medium">Invoice Items</h4>
-                    <InvoiceItems form={form} />
+                    <InvoiceItems form={form} currency={""} taxPercentage={0} />
                   </div>
                 </div>
               </CardContent>
