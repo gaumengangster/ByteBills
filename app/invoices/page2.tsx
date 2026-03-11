@@ -48,6 +48,7 @@ import {
 import { EmailInvoiceDialog } from "@/components/invoices/email-invoice-dialog"
 import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
+import {formatCurrency} from "@/lib/utils"
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth()
@@ -229,26 +230,7 @@ export default function InvoicesPage() {
     }
   }
 
-  const formatCurrency = (amount: number, invoice?: any) => {
-    const currency = invoice?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
+  
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>

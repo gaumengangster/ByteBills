@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { Download, X } from "lucide-react"
+import {formatCurrency} from "@/lib/utils"
 
 type ReceiptPreviewProps = {
   isOpen: boolean
@@ -28,26 +29,7 @@ export function ReceiptPreview({
   // Find the selected company data
   const selectedCompany = companies.find((c) => c.id === receiptData.companyId) || companies[0]
 
-  const formatCurrency = (amount: number) => {
-    const currencyMap: Record<string, string> = {
-      UGX: "UGX",
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-    }
-
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
+  
 
   // Calculate receipt totals
   const calculateSubtotal = () => {
@@ -164,9 +146,9 @@ export function ReceiptPreview({
                   <div key={index} className="grid grid-cols-12 gap-4 p-4">
                     <div className="col-span-5">{item.description || "Item Description"}</div>
                     <div className="col-span-2 text-center">{item.quantity || 0}</div>
-                    <div className="col-span-2 text-right">{formatCurrency(item.unitPrice || 0)}</div>
+                    <div className="col-span-2 text-right">{formatCurrency(item.unitPrice || 0, undefined)}</div>
                     <div className="col-span-3 text-right">
-                      {formatCurrency((item.quantity || 0) * (item.unitPrice || 0))}
+                      {formatCurrency((item.quantity || 0) * (item.unitPrice || 0), undefined)}
                     </div>
                   </div>
                 ))}
@@ -177,15 +159,15 @@ export function ReceiptPreview({
                   <div className="w-1/3 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span>{formatCurrency(calculateSubtotal())}</span>
+                      <span>{formatCurrency(calculateSubtotal(), undefined)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tax ({taxPercentage}%):</span>
-                      <span>{formatCurrency(calculateTax())}</span>
+                      <span>{formatCurrency(calculateTax(), undefined)}</span>
                     </div>
                     <div className="flex justify-between font-medium pt-2 border-t">
                       <span>Total Paid:</span>
-                      <span>{formatCurrency(calculateTotal())}</span>
+                      <span>{formatCurrency(calculateTotal(), undefined)}</span>
                     </div>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
+import {formatCurrency} from "@/lib/utils"
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
@@ -122,27 +123,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    const currency = invoice?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
-
   if (loading || loadingInvoice) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>
   }
@@ -150,6 +130,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   if (!invoice) {
     return <div className="flex min-h-screen items-center justify-center">Invoice not found</div>
   }
+
 
   return (
     <>
@@ -224,8 +205,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                       <div key={index} className="grid grid-cols-12 gap-4 p-4">
                         <div className="col-span-5">{item.description}</div>
                         <div className="col-span-2 text-center">{item.quantity}</div>
-                        <div className="col-span-2 text-right">{formatCurrency(item.unitPrice)}</div>
-                        <div className="col-span-3 text-right">{formatCurrency(item.quantity * item.unitPrice)}</div>
+                        <div className="col-span-2 text-right">{formatCurrency(item.unitPrice, invoice)}</div>
+                        <div className="col-span-3 text-right">{formatCurrency(item.quantity * item.unitPrice, invoice)}</div>
                       </div>
                     ))}
                   </div>
@@ -235,15 +216,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                       <div className="w-1/3 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Subtotal:</span>
-                          <span>{formatCurrency(invoice.subtotal)}</span>
+                          <span>{formatCurrency(invoice.subtotal, invoice)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Tax:</span>
-                          <span>{formatCurrency(invoice.tax)}</span>
+                          <span>{formatCurrency(invoice.tax, invoice)}</span>
                         </div>
                         <div className="flex justify-between font-medium pt-2 border-t">
                           <span>Total:</span>
-                          <span>{formatCurrency(invoice.total)}</span>
+                          <span>{formatCurrency(invoice.total, invoice)}</span>
                         </div>
                       </div>
                     </div>
@@ -426,8 +407,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     <tr key={index}>
                       <td className="p-2 border">{item.description}</td>
                       <td className="text-center p-2 border">{item.quantity}</td>
-                      <td className="text-right p-2 border">{formatCurrency(item.unitPrice)}</td>
-                      <td className="text-right p-2 border">{formatCurrency(item.quantity * item.unitPrice)}</td>
+                      <td className="text-right p-2 border">{formatCurrency(item.unitPrice, invoice)}</td>
+                      <td className="text-right p-2 border">{formatCurrency(item.quantity * item.unitPrice, invoice)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -435,17 +416,17 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   <tr>
                     <td colSpan={2} className="border"></td>
                     <td className="text-right p-2 border">Subtotal</td>
-                    <td className="text-right p-2 border">{formatCurrency(invoice.subtotal)}</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.subtotal, invoice)}</td>
                   </tr>
                   <tr>
                     <td colSpan={2} className="border"></td>
                     <td className="text-right p-2 border">Tax</td>
-                    <td className="text-right p-2 border">{formatCurrency(invoice.tax)}</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.tax, invoice)}</td>
                   </tr>
                   <tr className="font-bold">
                     <td colSpan={2} className="border"></td>
                     <td className="text-right p-2 border">Total</td>
-                    <td className="text-right p-2 border">{formatCurrency(invoice.total)}</td>
+                    <td className="text-right p-2 border">{formatCurrency(invoice.total, invoice)}</td>
                   </tr>
                 </tfoot>
               </table>

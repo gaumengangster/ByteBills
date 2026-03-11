@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { FormField, FormControl, FormItem, FormMessage } from "@/components/ui/form"
 import { Plus, Minus } from "lucide-react"
 import { useFieldArray } from "react-hook-form"
+import {formatCurrency} from "@/lib/utils"
 
 type ReceiptItemsProps = {
   form: UseFormReturn<any>
@@ -40,26 +41,7 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
     return calculateSubtotal() + calculateTax()
   }
 
-  const formatCurrency = (amount: number) => {
-    const currencyMap: Record<string, string> = {
-      UGX: "UGX",
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-    }
-
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
+  
 
   return (
     <div className="space-y-4">
@@ -146,7 +128,7 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
               <div className="col-span-1 text-right text-sm">
                 {formatCurrency(
                   (form.getValues(`items.${index}.quantity`) || 0) * (form.getValues(`items.${index}.unitPrice`) || 0),
-                )}
+                  undefined)}
               </div>
 
               <div className="col-span-1 flex justify-end">
@@ -171,15 +153,15 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
         <div className="space-y-2 min-w-[200px] p-4 bg-muted rounded-md">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal:</span>
-            <span className="font-medium">{formatCurrency(calculateSubtotal())}</span>
+            <span className="font-medium">{formatCurrency(calculateSubtotal(), undefined)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Tax ({taxPercentage}%):</span>
-            <span className="font-medium">{formatCurrency(calculateTax())}</span>
+            <span className="font-medium">{formatCurrency(calculateTax(), undefined)}</span>
           </div>
           <div className="flex justify-between font-semibold pt-2 border-t">
             <span>Total:</span>
-            <span>{formatCurrency(calculateTotal())}</span>
+            <span>{formatCurrency(calculateTotal(), undefined)}</span>
           </div>
         </div>
       </div>

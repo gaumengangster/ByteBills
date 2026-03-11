@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, Receipt, TruckIcon, Plus } from 'lucide-react'
 import Link from "next/link"
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
+import { collection, getDocs, query, where, limit } from "firebase/firestore"  // Uklonio orderBy
 import { db } from "@/lib/firebase"
 
 export default function DashboardPage() {
@@ -33,14 +32,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return
+      if (!user?.uid) return  // Bolji check
+
+      console.log("Fetching data for user:", user.uid)  // Debug
 
       try {
-        // Fetch stats
+        // Fetch stats - bez where za stats (samo count sve kolekcije)
         const fetchStats = async (collectionName: string) => {
-          const q = query(collection(db, collectionName), where("userId", "==", user.uid))
-          const snapshot = await getDocs(q)
-          return snapshot.size
+          try {
+            const q = query(
+              collection(db, collectionName), 
+              where("userId", "==", user.uid),
+              limit(100)  // Limit da izbjegneš listener issues
+            )
+            const snapshot = await getDocs(q)
+            return snapshot.size
+          } catch (err) {
+            console.warn(`Stats error for ${collectionName}:`, err)
+            return 0
+          }
         }
 
         const [invoices, receipts, deliveryNotes, proformaInvoices] = await Promise.all([
@@ -57,47 +67,50 @@ export default function DashboardPage() {
           proformaInvoices,
         })
 
-        // Fetch recent documents
+        // Fetch recent documents - bez orderBy, samo filter po userId
         const fetchRecent = async () => {
           const collections = ["invoices", "receipts", "deliveryNotes", "proformaInvoices"]
           const recentDocs: any[] = []
 
           for (const collectionName of collections) {
-            const q = query(
-              collection(db, collectionName),
-              where("userId", "==", user.uid),
-              orderBy("createdAt", "desc"),
-              limit(2),
-            )
-
-            const snapshot = await getDocs(q)
-            snapshot.forEach((doc) => {
-              recentDocs.push({
-                id: doc.id,
-                type: collectionName,
-                ...doc.data(),
+            try {
+              const q = query(
+                collection(db, collectionName),
+                where("userId", "==", user.uid),
+                limit(2)
+              )
+              const snapshot = await getDocs(q)
+              snapshot.forEach((doc) => {
+                recentDocs.push({
+                  id: doc.id,
+                  type: collectionName,
+                  ...doc.data(),
+                })
               })
-            })
+            } catch (err) {
+              console.warn(`Recent docs error for ${collectionName}:`, err)
+            }
           }
 
+          // Sort client-side
           return recentDocs
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
             .slice(0, 5)
         }
 
         const recentDocs = await fetchRecent()
         setRecentDocuments(recentDocs)
       } catch (error) {
-        console.error("Error fetching dashboard data:", error)
+        console.error("Dashboard fetch error:", error)
       } finally {
         setLoadingData(false)
       }
     }
 
-    if (user) {
+    if (user?.uid) {  // Dependency fix
       fetchData()
     }
-  }, [user])
+  }, [user?.uid])  // Koristi user.uid umjesto user
 
   if (loading || !user) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>
@@ -155,10 +168,10 @@ export default function DashboardPage() {
                           {doc.type === "proformaInvoices" && <FileText className="h-4 w-4 mr-2" />}
                           <div>
                             <p className="font-medium">
-                              {doc.documentNumber || doc.receiptNumber || doc.deliveryNumber}
+                              {doc.documentNumber || doc.receiptNumber || doc.deliveryNumber || 'Document'}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(doc.createdAt).toLocaleDateString()}
+                              {new Date(doc.createdAt || 0).toLocaleDateString()}
                             </p>
                           </div>
                         </div>

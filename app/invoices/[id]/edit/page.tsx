@@ -45,11 +45,12 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
 
         const invoiceData = {
           id: invoiceDoc.id,
+          userId: invoiceDoc.data().userId,
           ...invoiceDoc.data(),
         }
 
         // Check if the invoice belongs to the current user
-        if (invoiceData.id !== user.uid) {
+        if (invoiceData.userId !== user.uid) {
           toast({
             title: "Access denied",
             description: "You don't have permission to edit this invoice.",

@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {formatCurrency} from "@/lib/utils"
 
 export default function ReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
@@ -152,26 +153,7 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    const currency = receipt?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
+ 
 
   if (loading || loadingReceipt) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>
@@ -276,8 +258,8 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                       <div key={index} className="grid grid-cols-12 gap-4 p-4">
                         <div className="col-span-5">{item.description}</div>
                         <div className="col-span-2 text-center">{item.quantity}</div>
-                        <div className="col-span-2 text-right">{formatCurrency(item.unitPrice)}</div>
-                        <div className="col-span-3 text-right">{formatCurrency(item.quantity * item.unitPrice)}</div>
+                        <div className="col-span-2 text-right">{formatCurrency(item.unitPrice, receipt)}</div>
+                        <div className="col-span-3 text-right">{formatCurrency(item.quantity * item.unitPrice, receipt)}</div>
                       </div>
                     ))}
                   </div>
@@ -287,15 +269,15 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                       <div className="w-1/3 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Subtotal:</span>
-                          <span>{formatCurrency(receipt.subtotal)}</span>
+                          <span>{formatCurrency(receipt.subtotal, receipt)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Tax:</span>
-                          <span>{formatCurrency(receipt.tax)}</span>
+                          <span>{formatCurrency(receipt.tax, receipt)}</span>
                         </div>
                         <div className="flex justify-between font-medium pt-2 border-t">
                           <span>Total Paid:</span>
-                          <span>{formatCurrency(receipt.total)}</span>
+                          <span>{formatCurrency(receipt.total, receipt)}</span>
                         </div>
                       </div>
                     </div>

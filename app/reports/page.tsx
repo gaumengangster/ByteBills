@@ -326,7 +326,7 @@ export default function ReportsPage() {
                       <RevenueChart 
                         documents={reportData.documents} 
                         timeframe={timeframe}
-                        startDate={reportData.timeframe.startDate}
+                        startDate={reportData?.timeframe?.startDate}
                         endDate={reportData.timeframe.endDate}
                       />
                     </CardContent>
@@ -378,7 +378,7 @@ export default function ReportsPage() {
                       <DocumentsChart 
                         documents={reportData.documents}
                         timeframe={timeframe}
-                        startDate={reportData.timeframe.startDate}
+                        startDate={reportData?.timeframe?.startDate}
                         endDate={reportData.timeframe.endDate}
                       />
                     </CardContent>
@@ -420,7 +420,7 @@ export default function ReportsPage() {
                     <MonthlyComparisonChart 
                       documents={reportData.documents}
                       timeframe={timeframe}
-                      startDate={reportData.timeframe.startDate}
+                      startDate={reportData?.timeframe?.startDate}
                       endDate={reportData.timeframe.endDate}
                     />
                   </CardContent>

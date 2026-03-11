@@ -33,6 +33,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { Download, Edit, Eye, Receipt, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import {formatCurrency} from "@/lib/utils"
 
 export default function ReceiptsPage() {
   const { user, loading } = useAuth()
@@ -175,26 +176,7 @@ export default function ReceiptsPage() {
     }
   }
 
-  const formatCurrency = (amount: number, receipt?: any) => {
-    const currency = receipt?.currency || "USD"
-    const currencyMap: { [key: string]: string } = {
-      USD: "USD",
-      EUR: "EUR",
-      GBP: "GBP",
-      JPY: "JPY",
-      AUD: "AUD",
-      CAD: "CAD",
-      CHF: "CHF",
-      CNY: "CNY",
-      INR: "INR",
-      MXN: "MXN",
-      UGX: "UGX",
-    }
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currencyMap[currency] || "USD",
-    }).format(amount)
-  }
+  
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>

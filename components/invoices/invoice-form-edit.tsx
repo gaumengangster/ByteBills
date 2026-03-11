@@ -29,7 +29,6 @@ type InvoiceFormProps = {
   invoiceId: string
 }
 
-// Create a schema for invoice validation
 const invoiceSchema = z.object({
   companyId: z.string().min(1, "Please select a company"),
   clientName: z.string().min(1, "Client name is required"),
@@ -37,19 +36,18 @@ const invoiceSchema = z.object({
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
-  invoiceDate: z.date({
-    required_error: "Invoice date is required",
-  }),
-  dueDate: z.date({
-    required_error: "Due date is required",
-  }),
+  invoiceDate: z.date({ required_error: "Invoice date is required" }),
+  dueDate: z.date({ required_error: "Due date is required" }),
+  currency: z.enum(["EUR", "USD", "GBP", "CZK"], { required_error: "Currency is required" }),
+  unitOfWork: z.enum(["M/D", "M/H", "Kg", "Piece"], { required_error: "Unit of work is required" }),
+  taxRate: z.coerce.number().min(0).max(25).default(20),
   items: z
     .array(
       z.object({
         description: z.string().min(1, "Description is required"),
         quantity: z.number().min(1, "Quantity must be at least 1"),
         unitPrice: z.number().min(0, "Unit price must be at least 0"),
-      }),
+      })
     )
     .min(1, "At least one item is required"),
   notes: z.string().optional(),
@@ -64,7 +62,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
 
-  // Transform invoice data for the form
   const defaultValues: InvoiceFormValues = {
     companyId: invoice.companyId,
     clientName: invoice.clientDetails.name,
@@ -74,6 +71,9 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: new Date(invoice.invoiceDate),
     dueDate: new Date(invoice.dueDate),
+    currency: (invoice.currency as "EUR" | "USD" | "GBP" | "CZK") || "EUR",
+    unitOfWork: (invoice.unitOfWork as "M/D" | "M/H" | "Kg" | "Piece") || "M/D",
+    taxRate: invoice.taxRate || 20,
     items: invoice.items.map((item: any) => ({
       description: item.description,
       quantity: item.quantity,
@@ -83,26 +83,25 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     terms: invoice.terms || "",
   }
 
-  // Set up the form
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema),
     defaultValues,
   })
 
-  // Handle form submission
+  const currency = form.watch("currency")
+  const unitOfWork = form.watch("unitOfWork")
+  const taxRate = form.watch("taxRate")
+
   async function onSubmit(values: InvoiceFormValues) {
     setIsSubmitting(true)
 
     try {
-      // Calculate totals
       const subtotal = values.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-      const tax = subtotal * 0.1 // Example: 10% tax
+      const tax = subtotal * (values.taxRate / 100)
       const total = subtotal + tax
 
-      // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
 
-      // Prepare invoice data
       const invoiceData = {
         companyId: values.companyId,
         companyDetails: {
@@ -123,6 +122,9 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
         invoiceNumber: values.invoiceNumber,
         invoiceDate: values.invoiceDate.toISOString(),
         dueDate: values.dueDate.toISOString(),
+        currency: values.currency,
+        unitOfWork: values.unitOfWork,
+        taxRate: values.taxRate,
         items: values.items,
         subtotal,
         tax,
@@ -132,7 +134,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
         updatedAt: new Date().toISOString(),
       }
 
-      // Update in Firestore
       await updateDoc(doc(db, "invoices", invoiceId), invoiceData)
 
       toast({
@@ -140,7 +141,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
         description: `Invoice ${values.invoiceNumber} has been updated successfully.`,
       })
 
-      // Navigate to invoice view
       router.push(`/invoices/${invoiceId}`)
     } catch (error) {
       console.error("Error updating invoice:", error)
@@ -155,7 +155,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
   }
 
   const nextStep = () => {
-    // Validate current step before proceeding
     if (currentStep === 1) {
       const companyIdValid = form.trigger("companyId")
       if (!companyIdValid) return
@@ -163,7 +162,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
       const clientDetailsValid = form.trigger(["clientName", "clientEmail", "clientPhone", "clientAddress"])
       if (!clientDetailsValid) return
     } else if (currentStep === 2) {
-      const invoiceDetailsValid = form.trigger(["invoiceNumber", "invoiceDate", "dueDate", "items"])
+      const invoiceDetailsValid = form.trigger(["invoiceNumber", "invoiceDate", "dueDate", "currency", "unitOfWork", "taxRate", "items"])
       if (!invoiceDetailsValid) return
     }
 
@@ -178,30 +177,9 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div className="flex space-x-2">
-          <div
-            className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border",
-              currentStep >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
-          >
-            1
-          </div>
-          <div
-            className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border",
-              currentStep >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
-          >
-            2
-          </div>
-          <div
-            className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border",
-              currentStep >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
-          >
-            3
-          </div>
+          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border", currentStep >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>1</div>
+          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border", currentStep >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>2</div>
+          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border", currentStep >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>3</div>
         </div>
 
         <Button variant="outline" onClick={() => setIsPreviewOpen(true)}>
@@ -217,7 +195,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Company Information</h3>
-
                   <FormField
                     control={form.control}
                     name="companyId"
@@ -247,7 +224,6 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
 
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Client Information</h3>
-
                   <div className="space-y-4">
                     <FormField
                       control={form.control}
@@ -343,7 +319,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant={"outline"}
+                                  variant="outline"
                                   className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                                 >
                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -370,7 +346,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant={"outline"}
+                                  variant="outline"
                                   className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                                 >
                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -388,9 +364,87 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                     />
                   </div>
 
+                  <div className="grid grid-cols-3 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="currency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Currency</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="EUR">€ EUR</SelectItem>
+                              <SelectItem value="CZK">Kč CZK</SelectItem>
+                              <SelectItem value="USD">$ USD</SelectItem>
+                              <SelectItem value="GBP">£ GBP</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                
+                    <FormField
+                      control={form.control}
+                      name="unitOfWork"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Working Unit</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="M/D">Man/Day</SelectItem>
+                              <SelectItem value="M/H">Man/Hour</SelectItem>
+                              <SelectItem value="Kg">kg</SelectItem>
+                              <SelectItem value="Piece">Komad</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+<FormField
+  control={form.control}
+  name="taxRate"
+  render={({ field }) => (
+    <FormItem>
+      <FormLabel>PDV / Tax Rate (%)</FormLabel>
+      <FormControl>
+        <Input
+          type="number"
+          step="0.5"
+          min="0"
+          max="25"
+          {...field}
+          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+          className="w-24 h-10"
+          placeholder="20"
+        />
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
+
+                  </div>
+
                   <div className="space-y-2">
                     <h4 className="font-medium">Invoice Items</h4>
-                    <InvoiceItems form={form} currency={""} taxPercentage={0} />
+                    <InvoiceItems 
+                      form={form} 
+                      currency={currency} 
+                      taxPercentage={taxRate} 
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -450,7 +504,8 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
               </Button>
             ) : (
               <div className="flex space-x-2">
-                <Button type="submit" disabled={isSubmitting}>
+                 <Button type="submit" disabled={isSubmitting}>
+
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -480,4 +535,3 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     </div>
   )
 }
-

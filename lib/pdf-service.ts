@@ -30,8 +30,8 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.text(`Date: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy")}`, margin, y)
   y += 5
   pdf.text(`Due Date: ${format(new Date(invoice.dueDate), "MMMM d, yyyy")}`, margin, y)
-  y += 5
-  pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y)
+/*   y += 5
+  pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y) */
   y += 15
 
   // Company details on the right
@@ -48,13 +48,13 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   let companyDetailY = companyY + 5
 
   if (invoice.companyDetails.address) {
-    pdf.text(invoice.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`Street: ${invoice.companyDetails.address}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.city || invoice.companyDetails.country) {
     const location = [invoice.companyDetails.city, invoice.companyDetails.country].filter(Boolean).join(", ")
-    pdf.text(location, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`City: ${location}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
@@ -64,7 +64,8 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   }
 
   if (invoice.companyDetails.email) {
-    pdf.text(`Email: ${invoice.companyDetails.email}`, rightMargin, companyDetailY)
+    pdf.text(`Email: ${invoice.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    companyDetailY += 4
   }
 
   // Client information
@@ -78,10 +79,31 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.text(invoice.clientDetails.name, margin, y)
   y += 5
 
-  if (invoice.clientDetails.address) {
-    pdf.text(invoice.clientDetails.address, margin, y)
-    y += 5
+  if (invoice.clientDetails?.address) {
+    // Type guard + safe split
+    const address = invoice.clientDetails.address as string
+    const addressLines = address
+      .replace(/\\n/g, '\n')  // ← Pretvori literal u pravi newline
+      .split('\n')
+        .map((line: string) => line.trim())
+        .filter((line: string) => line.length > 0)
+    
+    addressLines.forEach((line: string, index: number) => {
+      let label = '';
+      
+      if (index === 0) {
+        label = 'Street: ';  // Prva linija - Address
+      } else if (index === 1 && addressLines.length > 1) {
+        // Druga linija - City (pretpostavi da je sledeća linija)
+        label = 'City: ';
+      }
+      
+      const fullText = label + line;
+      pdf.text(fullText as any, margin, y)  // ← pdf-lib tip fix
+      y += 5
+    })
   }
+  
 
   if (invoice.clientDetails.phone) {
     pdf.text(`Phone: ${invoice.clientDetails.phone}`, margin, y)
@@ -115,7 +137,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.text("Description", tableLeft + 2, y + 5)
   pdf.text("Quantity", tableLeft + colWidths.description + 2, y + 5)
   pdf.text("Unit Price", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
-  pdf.text("Amount", tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
+  pdf.text("Total Value", tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
 
   y += 8
 
@@ -131,12 +153,12 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
 
     pdf.text(item.description, tableLeft + 2, y + 5)
-    pdf.text(item.quantity.toString(), tableLeft + colWidths.description + 2, y + 5)
+    pdf.text(item.quantity.toString() + ' ' + invoice.unitOfWork, tableLeft + colWidths.description + 2, y + 5)
 
-    const unitPriceFormatted = formatCurrency(item.unitPrice)
+    const unitPriceFormatted = formatCurrency(item.unitPrice, invoice.currency)
     pdf.text(unitPriceFormatted, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
 
-    const amountFormatted = formatCurrency(item.quantity * item.unitPrice)
+    const amountFormatted = formatCurrency(item.quantity * item.unitPrice, invoice.currency)
     pdf.text(amountFormatted, tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
 
     y += rowHeight
@@ -153,27 +175,37 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   pdf.text("Subtotal:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.subtotal),
+    formatCurrency(invoice.subtotal, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 8
 
-  pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
+  //pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
+  const reverseCharge = true
+  if(reverseCharge){
+    pdf.setFontSize(8)
+    pdf.text("Reverse Charge (Steuerschuldnerschaft des Leistungsempfängers)", 
+      tableLeft+ 2, 
+      y + 5
+    )
+    pdf.setFontSize(10)
+  }
+  
   pdf.text("Tax:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.tax),
+    formatCurrency(invoice.tax, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 8
 
-  pdf.setFillColor(230, 230, 230)
-  pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
+   pdf.setFillColor(230, 230, 230)
+  pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F") 
   pdf.setFont("helvetica", "bold")
   pdf.text("Total:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.total),
+    formatCurrency(invoice.total, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
@@ -207,15 +239,46 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
   }
 
+// Payment Terms section
+pdf.setFontSize(10)
+pdf.setFont("helvetica", 'bold')
+pdf.text("Payment Terms:", margin, y)
+pdf.setFont("helvetica", 'normal')
+y += 6
+
+const paymentDetails = [
+  { label: "Bank:", value: "Wise Europe SA" },
+  { label: "IBAN:", value: "BE67 9671 9351 7487" },
+  { label: "Bank code (SWIFT/BIC):", value: "TRWIBEB1XXX" },
+  { label: "Bank Address:", value: "Wise Europe SA, Avenue Louise 54, Room S52, 1050, Belgium" }
+]
+
+pdf.setFontSize(9)
+paymentDetails.forEach(({ label, value }) => {
+  // Bold label + value U ISTOM REDU (bez razmaka)
+  pdf.setFont("helvetica", 'bold')
+  pdf.text(label, margin, y)
+  
+  pdf.setFont("helvetica", 'normal')
+  pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)  // ← Dinamički x pozicija
+  
+  y += 6
+})
+
+pdf.setFontSize(12)  // Vrati na default
+y += 10
+
+
+
   // Footer
   pdf.setFont("helvetica", "italic")
   pdf.setFontSize(9)
   pdf.text("Thank you for your business!", pageWidth / 2, pageHeight - margin, { align: "center" })
 
   // Add ByteBills branding
-  pdf.setFont("helvetica", "normal")
+/*   pdf.setFont("helvetica", "normal")
   pdf.setFontSize(8)
-  pdf.text("Generated by ByteBills", pageWidth - margin, pageHeight - margin, { align: "right" })
+  pdf.text("Generated by ByteBills", pageWidth - margin, pageHeight - margin, { align: "right" }) */
 
   // Return as blob
   return pdf.output("blob")
@@ -242,11 +305,23 @@ export function downloadPDF(blob: Blob, filename: string): void {
 }
 
 // Helper function to format currency
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+function formatCurrency(amount: number, currency: string = 'EUR'): string {
+  const locale = 'cs-CZ'  // EU format
+  
+  const formatted = new Intl.NumberFormat(locale, {
+    style: "decimal",  // Bez simbola
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount)
+  
+  // Ručni simboli za pouzdanost
+  const symbols: Record<string, string> = {
+    'EUR': '€',
+    'CZK': 'CZK',
+    'USD': '$',
+    'GBP': '£',
+  }
+  
+  const symbol = symbols[currency] || currency
+  return `${formatted} ${symbol}`
 }
