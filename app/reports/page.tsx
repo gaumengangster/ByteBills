@@ -327,7 +327,7 @@ export default function ReportsPage() {
                         documents={reportData.documents} 
                         timeframe={timeframe}
                         startDate={reportData?.timeframe?.startDate}
-                        endDate={reportData.timeframe.endDate}
+                        endDate={reportData?.timeframe?.endDate}
                       />
                     </CardContent>
                   </Card>
@@ -379,7 +379,7 @@ export default function ReportsPage() {
                         documents={reportData.documents}
                         timeframe={timeframe}
                         startDate={reportData?.timeframe?.startDate}
-                        endDate={reportData.timeframe.endDate}
+                        endDate={reportData?.timeframe?.endDate}
                       />
                     </CardContent>
                   </Card>
@@ -421,7 +421,7 @@ export default function ReportsPage() {
                       documents={reportData.documents}
                       timeframe={timeframe}
                       startDate={reportData?.timeframe?.startDate}
-                      endDate={reportData.timeframe.endDate}
+                      endDate={reportData?.timeframe?.endDate}
                     />
                   </CardContent>
                 </Card>

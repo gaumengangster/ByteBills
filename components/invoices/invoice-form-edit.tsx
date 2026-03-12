@@ -440,10 +440,11 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
 
                   <div className="space-y-2">
                     <h4 className="font-medium">Invoice Items</h4>
-                    <InvoiceItems 
-                      form={form} 
-                      currency={currency} 
-                      taxPercentage={taxRate} 
+                    <InvoiceItems
+                      form={form}
+                      currency={currency}
+                      taxPercentage={taxRate}
+                      showErrors={true}
                     />
                   </div>
                 </div>

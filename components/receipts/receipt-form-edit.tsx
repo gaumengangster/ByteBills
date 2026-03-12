@@ -209,7 +209,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {currentStep === 1 && <ClientDetails form={form} companies={companies} />}
+          {currentStep === 1 && <ClientDetails form={form} companies={companies} userId={userId} />}
 
           {currentStep === 2 && (
             <Card>
@@ -308,7 +308,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
                   <div className="space-y-2">
                     <h4 className="font-medium">Receipt Items</h4>
-                    <ReceiptItems form={form} currency={currency} taxPercentage={taxPercentage} />
+                    <ReceiptItems form={form} currency={currency} taxPercentage={taxPercentage} showErrors={true} />
                   </div>
                 </div>
               </CardContent>

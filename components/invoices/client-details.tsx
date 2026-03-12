@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { addDoc, collection, getDocs, query, where, orderBy } from "firebase/firestore"
 import type { UseFormReturn } from "react-hook-form"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,13 +24,15 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { db } from "@/lib/firebase"
 
 type ClientDetailsProps = {
   form: UseFormReturn<any>
   companies: any[]
+  userId: string
 }
 
-export function ClientDetails({ form, companies }: ClientDetailsProps) {
+export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
   const [clientTab, setClientTab] = useState("new")
   const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false)
   const [newClient, setNewClient] = useState({
@@ -38,24 +41,36 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
     phone: "",
     address: "",
   })
-  const [savedClients, setSavedClients] = useState<any[]>([
-    {
-      id: "1",
-      name: "Acme Corporation",
-      email: "billing@acme.com",
-      phone: "+1 234 567 890",
-      address: "123 Business Ave, New York, NY 10001",
-    },
-    {
-      id: "2",
-      name: "Tech Innovators LLC",
-      email: "accounts@techinnovators.com",
-      phone: "+1 987 654 321",
-      address: "456 Startup Blvd, San Francisco, CA 94107",
-    },
-  ])
+  const [savedClients, setSavedClients] = useState<any[]>([])
 
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+
+  // Load existing clients from Firestore for this user
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const clientsQuery = query(
+          collection(db, "clients"),
+          where("userId", "==", userId),
+          orderBy("createdAt", "desc"),
+        )
+
+        const snapshot = await getDocs(clientsQuery)
+        const clients = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        setSavedClients(clients)
+      } catch (error) {
+        console.error("Error loading clients:", error)
+      }
+    }
+
+    if (userId) {
+      loadClients()
+    }
+  }, [userId])
 
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setNewClient({
@@ -64,7 +79,7 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
     })
   }
 
-  const addNewClient = () => {
+  const addNewClient = async () => {
     if (!newClient.name) {
       toast({
         title: "Client name required",
@@ -74,26 +89,47 @@ export function ClientDetails({ form, companies }: ClientDetailsProps) {
       return
     }
 
-    const newClientWithId = {
-      ...newClient,
-      id: Date.now().toString(),
+    try {
+      // Persist client to Firestore
+      const docRef = await addDoc(collection(db, "clients"), {
+        userId,
+        name: newClient.name,
+        email: newClient.email,
+        phone: newClient.phone,
+        address: newClient.address,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+
+      const newClientWithId = {
+        ...newClient,
+        id: docRef.id,
+      }
+
+      // Update local list for the current session
+      setSavedClients([...savedClients, newClientWithId])
+      setIsAddClientDialogOpen(false)
+
+      toast({
+        title: "Success",
+        description: `${newClient.name} has been saved to your clients.`,
+      })
+
+      // Reset form
+      setNewClient({
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+      })
+    } catch (error) {
+      console.error("Error saving client:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save client. Please try again.",
+        variant: "destructive",
+      })
     }
-
-    setSavedClients([...savedClients, newClientWithId])
-    setIsAddClientDialogOpen(false)
-
-    toast({
-      title: "Success",
-      description: `${newClient.name} has been added to your clients.`,
-    })
-
-    // Reset form
-    setNewClient({
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-    })
   }
 
   const selectSavedClient = (clientId: string) => {

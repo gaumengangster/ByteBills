@@ -15,13 +15,13 @@ import * as z from "zod"
 import { CalendarIcon, Check, Eye, Loader2 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
 import { ClientDetails } from "./client-details"
 import { InvoiceItems } from "./invoice-items"
 import { InvoicePreview } from "./invoice-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
-import { DocumentSettings } from "@/components/document-settings/document-settings" // Added import for DocumentSettings
 
 type InvoiceFormProps = {
   userId: string
@@ -42,6 +42,9 @@ const invoiceSchema = z.object({
   dueDate: z.date({
     required_error: "Due date is required",
   }),
+  currency: z.enum(["EUR", "USD", "GBP", "CZK"], { required_error: "Currency is required" }),
+  unitOfWork: z.enum(["M/D", "M/H", "Kg", "Piece"], { required_error: "Unit of work is required" }),
+  taxRate: z.coerce.number().min(0).max(25).default(20),
   items: z
     .array(
       z.object({
@@ -62,13 +65,14 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
-  const [currency, setCurrency] = useState("USD")
-  const [taxPercentage, setTaxPercentage] = useState(10)
   const [formData, setFormData] = useState<Partial<InvoiceFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
     invoiceNumber: generateInvoiceNumber(),
     invoiceDate: new Date(),
     dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+    currency: "EUR",
+    unitOfWork: "M/D",
+    taxRate: 20,
     items: [{ description: "", quantity: 1, unitPrice: 0 }],
     notes: "",
     terms: "Payment is due within 30 days",
@@ -79,6 +83,11 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     resolver: zodResolver(invoiceSchema),
     defaultValues: formData as InvoiceFormValues,
   })
+
+  const currency = form.watch("currency")
+  const unitOfWork = form.watch("unitOfWork")
+  const taxRate = form.watch("taxRate")
+  const [showItemErrors, setShowItemErrors] = useState(false)
 
   function generateInvoiceNumber() {
     const prefix = "INV"
@@ -99,7 +108,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     try {
       // Calculate totals
       const subtotal = values.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-      const tax = subtotal * (taxPercentage / 100)
+      const tax = subtotal * (values.taxRate / 100)
       const total = subtotal + tax
 
       // Get selected company
@@ -127,12 +136,13 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         invoiceNumber: values.invoiceNumber,
         invoiceDate: values.invoiceDate.toISOString(),
         dueDate: values.dueDate.toISOString(),
+        currency: values.currency,
+        unitOfWork: values.unitOfWork,
+        taxRate: values.taxRate,
         items: values.items,
         subtotal,
         tax,
         total,
-        currency,
-        taxPercentage,
         notes: values.notes || "",
         terms: values.terms || "",
         status: "pending", // pending, paid, overdue, cancelled
@@ -162,21 +172,29 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     }
   }
 
-  const nextStep = () => {
+  const nextStep = async () => {
     // Get current form values
     const currentValues = form.getValues()
     setFormData(currentValues)
 
     // Validate current step before proceeding
     if (currentStep === 1) {
-      const companyIdValid = form.trigger("companyId")
-      if (!companyIdValid) return
-
-      const clientDetailsValid = form.trigger(["clientName", "clientEmail", "clientPhone", "clientAddress"])
-      if (!clientDetailsValid) return
+      // Allow moving to step 2 without blocking on validation;
+      // full client/company validation will occur on final submit.
     } else if (currentStep === 2) {
-      const invoiceDetailsValid = form.trigger(["invoiceNumber", "invoiceDate", "dueDate", "items"])
-      if (!invoiceDetailsValid) return
+      const invoiceDetailsValid = await form.trigger([
+        "invoiceNumber",
+        "invoiceDate",
+        "dueDate",
+        "currency",
+        "unitOfWork",
+        "taxRate",
+        "items",
+      ])
+      if (!invoiceDetailsValid) {
+        setShowItemErrors(true)
+        return
+      }
     }
 
     setCurrentStep(currentStep + 1)
@@ -227,20 +245,13 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {currentStep === 1 && <ClientDetails form={form} companies={companies} />}
+          {currentStep === 1 && <ClientDetails form={form} companies={companies} userId={userId} />}
 
           {currentStep === 2 && (
             <Card>
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Invoice Details</h3>
-
-                  <DocumentSettings
-                    currency={currency}
-                    onCurrencyChange={setCurrency}
-                    taxPercentage={taxPercentage}
-                    onTaxPercentageChange={setTaxPercentage}
-                  />
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField
@@ -267,7 +278,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant={"outline"}
+                                  variant="outline"
                                   className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                                 >
                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -294,7 +305,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant={"outline"}
+                                  variant="outline"
                                   className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                                 >
                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
@@ -312,9 +323,82 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                     />
                   </div>
 
+                  <div className="grid grid-cols-3 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="currency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Currency</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="EUR">€ EUR</SelectItem>
+                              <SelectItem value="CZK">Kč CZK</SelectItem>
+                              <SelectItem value="USD">$ USD</SelectItem>
+                              <SelectItem value="GBP">£ GBP</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="unitOfWork"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Working Unit</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="M/D">Man/Day</SelectItem>
+                              <SelectItem value="M/H">Man/Hour</SelectItem>
+                              <SelectItem value="Kg">kg</SelectItem>
+                              <SelectItem value="Piece">Komad</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="taxRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>PDV / Tax Rate (%)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="25"
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                              className="w-24 h-10"
+                              placeholder="20"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <h4 className="font-medium">Invoice Items</h4>
-                    <InvoiceItems form={form} currency={currency} taxPercentage={taxPercentage} />
+                    <InvoiceItems form={form} currency={currency} taxPercentage={taxRate} showErrors={showItemErrors} />
                   </div>
                 </div>
               </CardContent>

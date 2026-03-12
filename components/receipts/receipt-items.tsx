@@ -12,9 +12,10 @@ type ReceiptItemsProps = {
   form: UseFormReturn<any>
   currency: string // Added currency prop
   taxPercentage: number // Added tax percentage prop
+  showErrors?: boolean
 }
 
-export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProps) {
+export function ReceiptItems({ form, currency, taxPercentage, showErrors = true }: ReceiptItemsProps) {
   const { fields, append, remove } = useFieldArray({
     name: "items",
     control: form.control,
@@ -65,7 +66,7 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
                       <FormControl>
                         <Input placeholder="Item description" {...field} />
                       </FormControl>
-                      <FormMessage />
+                      {showErrors && <FormMessage />}
                     </FormItem>
                   )}
                 />
@@ -89,7 +90,7 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
                           }}
                         />
                       </FormControl>
-                      <FormMessage />
+                      {showErrors && <FormMessage />}
                     </FormItem>
                   )}
                 />
@@ -119,7 +120,7 @@ export function ReceiptItems({ form, currency, taxPercentage }: ReceiptItemsProp
                           />
                         </div>
                       </FormControl>
-                      <FormMessage />
+                      {showErrors && <FormMessage />}
                     </FormItem>
                   )}
                 />

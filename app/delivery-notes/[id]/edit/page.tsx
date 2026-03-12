@@ -216,6 +216,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
 
       // Prepare delivery note data
       const deliveryNoteData = {
+        userId: userData.userId,
         companyId: values.companyId,
         companyDetails: {
           name: selectedCompany?.name || "",
@@ -352,7 +353,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {currentStep === 1 && <ClientDetails form={form} companies={userData.companies} />}
+              {currentStep === 1 && <ClientDetails form={form} companies={userData.companies}  userId={userId}/>}
 
               {currentStep === 2 && (
                 <Card>

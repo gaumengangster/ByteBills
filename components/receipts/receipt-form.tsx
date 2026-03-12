@@ -63,6 +63,7 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [currency, setCurrency] = useState("USD")
   const [taxPercentage, setTaxPercentage] = useState(10)
+  const [showItemErrors, setShowItemErrors] = useState(false)
   const [formData, setFormData] = useState<Partial<ReceiptFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
     receiptNumber: generateReceiptNumber(),
@@ -161,21 +162,20 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
     }
   }
 
-  const nextStep = () => {
+  const nextStep = async () => {
     // Get current form values
     const currentValues = form.getValues()
     setFormData(currentValues)
 
     // Validate current step before proceeding
     if (currentStep === 1) {
-      const companyIdValid = form.trigger("companyId")
-      if (!companyIdValid) return
-
-      const clientDetailsValid = form.trigger(["clientName", "clientEmail", "clientPhone", "clientAddress"])
-      if (!clientDetailsValid) return
+      // Let the user move to step 2 freely; validate fully later.
     } else if (currentStep === 2) {
-      const receiptDetailsValid = form.trigger(["receiptNumber", "receiptDate", "paymentMethod", "items"])
-      if (!receiptDetailsValid) return
+      const receiptDetailsValid = await form.trigger(["receiptNumber", "receiptDate", "paymentMethod", "items"])
+      if (!receiptDetailsValid) {
+        setShowItemErrors(true)
+        return
+      }
     }
 
     setCurrentStep(currentStep + 1)
@@ -226,7 +226,7 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {currentStep === 1 && <ClientDetails form={form} companies={companies} />}
+          {currentStep === 1 && <ClientDetails form={form} companies={companies} userId={userId} />}
 
           {currentStep === 2 && (
             <Card>
@@ -325,7 +325,12 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
 
                   <div className="space-y-2">
                     <h4 className="font-medium">Receipt Items</h4>
-                    <ReceiptItems form={form} currency={currency} taxPercentage={taxPercentage} />
+                    <ReceiptItems
+                      form={form}
+                      currency={currency}
+                      taxPercentage={taxPercentage}
+                      showErrors={showItemErrors}
+                    />
                   </div>
                 </div>
               </CardContent>

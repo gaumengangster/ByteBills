@@ -220,7 +220,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {currentStep === 1 && <ClientDetails form={form} companies={companies} />}
+          {currentStep === 1 && <ClientDetails form={form} companies={companies}  userId={userId as string}/>}
 
           {currentStep === 2 && (
             <Card>

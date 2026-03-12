@@ -44,12 +44,12 @@ export default function EditReceiptPage({ params }: { params: Promise<{ id: stri
         }
 
         const receiptData = {
-          id: receiptDoc.id,
+          userId: receiptDoc.id,
           ...receiptDoc.data(),
         }
 
         // Check if the receipt belongs to the current user
-        if (receiptData.id !== user.uid) {
+        if (receiptData.userId as string !== user.uid) {
           toast({
             title: "Access denied",
             description: "You don't have permission to edit this receipt.",
