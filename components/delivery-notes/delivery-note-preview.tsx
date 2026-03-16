@@ -41,6 +41,7 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
           email: deliveryNoteData.clientEmail || "",
           phone: deliveryNoteData.clientPhone || "",
         },
+        language: deliveryNoteData.clientLanguage || "en",
       }
 
       const pdfBlob = await generateDeliveryNotePDF(pdfData)

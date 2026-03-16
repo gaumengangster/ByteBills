@@ -32,6 +32,7 @@ const deliveryNoteSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
+  clientLanguage: z.string().optional().default("en"),
   deliveryNoteNumber: z.string().min(1, "Delivery note number is required"),
   deliveryDate: z.date({
     required_error: "Delivery date is required",
@@ -180,6 +181,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
           clientEmail: deliveryNoteData.clientDetails.email || "",
           clientPhone: deliveryNoteData.clientDetails.phone || "",
           clientAddress: deliveryNoteData.clientDetails.address || "",
+          clientLanguage: (deliveryNoteData as any).language || "en",
           deliveryNoteNumber: deliveryNoteData.deliveryNoteNumber,
           deliveryDate: new Date(deliveryNoteData.deliveryDate),
           deliveryAddress: deliveryNoteData.deliveryAddress || "",
@@ -233,6 +235,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
         },
+        language: values.clientLanguage || "en",
         deliveryNoteNumber: values.deliveryNoteNumber,
         deliveryDate: values.deliveryDate.toISOString(),
         deliveryAddress: values.deliveryAddress || "",
@@ -353,7 +356,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {currentStep === 1 && <ClientDetails form={form} companies={userData.companies}  userId={userId}/>}
+              {currentStep === 1 && <ClientDetails form={form} companies={userData.companies} userId={user!.uid} />}
 
               {currentStep === 2 && (
                 <Card>

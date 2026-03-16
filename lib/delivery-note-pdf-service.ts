@@ -1,42 +1,44 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
+import { de as dateFnsDe } from "date-fns/locale"
+import { getTranslations } from "./translations"
 
-// Function to create a PDF directly without using html2canvas
 export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> {
-  // Create a new PDF document
+  const lang = deliveryNote.language || "en"
+  const t = getTranslations(lang)
+  const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
+
   const pdf = new jsPDF("p", "mm", "a4")
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
   let y = margin
 
-  // Helper function to add text with word wrap
   const addWrappedText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number): number => {
     const lines = pdf.splitTextToSize(text, maxWidth)
     pdf.text(lines, x, y)
     return y + lineHeight * lines.length
   }
 
-  // Add company logo and info
   pdf.setFontSize(20)
   pdf.setFont("helvetica", "bold")
-  pdf.text("DELIVERY NOTE", margin, y)
+  pdf.text(t.deliveryNote, margin, y)
   y += 10
 
   pdf.setFontSize(10)
   pdf.setFont("helvetica", "normal")
-  pdf.text(`Delivery Note #: ${deliveryNote.deliveryNoteNumber}`, margin, y)
+  pdf.text(`${t.deliveryNoteNumber}: ${deliveryNote.deliveryNoteNumber}`, margin, y)
   y += 5
-  pdf.text(`Date: ${format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`${t.date}: ${format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
   y += 5
 
   if (deliveryNote.invoiceReference) {
-    pdf.text(`Invoice Reference: ${deliveryNote.invoiceReference}`, margin, y)
+    pdf.text(`${t.invoiceReference}: ${deliveryNote.invoiceReference}`, margin, y)
     y += 5
   }
 
   if (deliveryNote.orderReference) {
-    pdf.text(`Order Reference: ${deliveryNote.orderReference}`, margin, y)
+    pdf.text(`${t.orderReference}: ${deliveryNote.orderReference}`, margin, y)
     y += 5
   }
 
@@ -67,18 +69,17 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   if (deliveryNote.companyDetails.phone) {
-    pdf.text(`Phone: ${deliveryNote.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.phone}: ${deliveryNote.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (deliveryNote.companyDetails.email) {
-    pdf.text(`Email: ${deliveryNote.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.email}: ${deliveryNote.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
   }
 
-  // Client information
   pdf.setFontSize(12)
   pdf.setFont("helvetica", "bold")
-  pdf.text("Deliver To:", margin, y)
+  pdf.text(t.deliverTo, margin, y)
   y += 7
 
   pdf.setFontSize(10)
@@ -92,21 +93,20 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   if (deliveryNote.clientDetails.phone) {
-    pdf.text(`Phone: ${deliveryNote.clientDetails.phone}`, margin, y)
+    pdf.text(`${t.phone}: ${deliveryNote.clientDetails.phone}`, margin, y)
     y += 5
   }
 
   if (deliveryNote.clientDetails.email) {
-    pdf.text(`Email: ${deliveryNote.clientDetails.email}`, margin, y)
+    pdf.text(`${t.email}: ${deliveryNote.clientDetails.email}`, margin, y)
     y += 5
   }
 
-  // Delivery address if different
   if (deliveryNote.deliveryAddress && deliveryNote.deliveryAddress !== deliveryNote.clientDetails.address) {
     y += 5
     pdf.setFontSize(12)
     pdf.setFont("helvetica", "bold")
-    pdf.text("Delivery Address:", margin, y)
+    pdf.text(t.deliveryAddress, margin, y)
     y += 7
 
     pdf.setFontSize(10)
@@ -128,14 +128,13 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     notes: tableWidth * 0.3,
   }
 
-  // Table headers
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft, y, tableWidth, 8, "F")
 
   pdf.setFont("helvetica", "bold")
-  pdf.text("Description", tableLeft + 2, y + 5)
-  pdf.text("Quantity", tableLeft + colWidths.description + 2, y + 5)
-  pdf.text("Notes", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text(t.description, tableLeft + 2, y + 5)
+  pdf.text(t.quantity, tableLeft + colWidths.description + 2, y + 5)
+  pdf.text(t.notes.replace(":", ""), tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
 
   y += 8
 
@@ -176,7 +175,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     }
 
     pdf.setFont("helvetica", "bold")
-    pdf.text("Delivery Instructions:", margin, y)
+    pdf.text(t.deliveryInstructions, margin, y)
     y += 7
 
     pdf.setFont("helvetica", "normal")
@@ -184,7 +183,6 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     y += 10
   }
 
-  // Notes
   if (deliveryNote.notes) {
     if (y > pageHeight - 60) {
       pdf.addPage()
@@ -192,7 +190,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     }
 
     pdf.setFont("helvetica", "bold")
-    pdf.text("Notes:", margin, y)
+    pdf.text(t.notes, margin, y)
     y += 7
 
     pdf.setFont("helvetica", "normal")
@@ -207,29 +205,27 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   pdf.setFont("helvetica", "bold")
-  pdf.text("Delivered By:", margin, y)
-  pdf.text("Received By:", pageWidth / 2 + 10, y)
+  pdf.text(t.deliveredBy, margin, y)
+  pdf.text(t.receivedBy, pageWidth / 2 + 10, y)
   y += 7
 
   pdf.setFont("helvetica", "normal")
-  pdf.text("Name: ____________________", margin, y)
-  pdf.text("Name: ____________________", pageWidth / 2 + 10, y)
+  pdf.text(`${t.name}: ____________________`, margin, y)
+  pdf.text(`${t.name}: ____________________`, pageWidth / 2 + 10, y)
   y += 10
 
-  pdf.text("Signature: ________________", margin, y)
-  pdf.text("Signature: ________________", pageWidth / 2 + 10, y)
+  pdf.text(`${t.signature}: ________________`, margin, y)
+  pdf.text(`${t.signature}: ________________`, pageWidth / 2 + 10, y)
   y += 10
 
-  pdf.text("Date: ____________________", margin, y)
-  pdf.text("Date: ____________________", pageWidth / 2 + 10, y)
+  pdf.text(`${t.date}: ____________________`, margin, y)
+  pdf.text(`${t.date}: ____________________`, pageWidth / 2 + 10, y)
   y += 15
 
-  // Footer
   pdf.setFont("helvetica", "italic")
   pdf.setFontSize(9)
-  pdf.text("Thank you for your business!", pageWidth / 2, pageHeight - margin, { align: "center" })
+  pdf.text(t.thankYou, pageWidth / 2, pageHeight - margin, { align: "center" })
 
-  // Add ByteBills branding
   pdf.setFont("helvetica", "normal")
   pdf.setFontSize(8)
   pdf.text("Generated by ByteBills", pageWidth - margin, pageHeight - margin, { align: "right" })

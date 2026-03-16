@@ -1,35 +1,37 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
+import { de as dateFnsDe } from "date-fns/locale"
+import { getTranslations } from "./translations"
 
-// Function to create a PDF directly without using html2canvas
 export async function generateInvoicePDF(invoice: any): Promise<Blob> {
-  // Create a new PDF document
+  const lang = invoice.language || "en"
+  const t = getTranslations(lang)
+  const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
+
   const pdf = new jsPDF("p", "mm", "a4")
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
   let y = margin
 
-  // Helper function to add text with word wrap
   const addWrappedText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number): number => {
     const lines = pdf.splitTextToSize(text, maxWidth)
     pdf.text(lines, x, y)
     return y + lineHeight * lines.length
   }
 
-  // Add company logo and info
   pdf.setFontSize(20)
   pdf.setFont("helvetica", "bold")
-  pdf.text("INVOICE", margin, y)
+  pdf.text(t.invoice, margin, y)
   y += 10
 
   pdf.setFontSize(10)
   pdf.setFont("helvetica", "normal")
-  pdf.text(`Invoice #: ${invoice.invoiceNumber}`, margin, y)
+  pdf.text(`${t.invoiceNumber}: ${invoice.invoiceNumber}`, margin, y)
   y += 5
-  pdf.text(`Date: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`${t.date}: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
   y += 5
-  pdf.text(`Due Date: ${format(new Date(invoice.dueDate), "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`${t.dueDate}: ${format(new Date(invoice.dueDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
 /*   y += 5
   pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y) */
   y += 15
@@ -48,30 +50,29 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   let companyDetailY = companyY + 5
 
   if (invoice.companyDetails.address) {
-    pdf.text(`Street: ${invoice.companyDetails.address}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.street}: ${invoice.companyDetails.address}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.city || invoice.companyDetails.country) {
     const location = [invoice.companyDetails.city, invoice.companyDetails.country].filter(Boolean).join(", ")
-    pdf.text(`City: ${location}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.city}: ${location}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.phone) {
-    pdf.text(`Phone: ${invoice.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.phone}: ${invoice.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.email) {
-    pdf.text(`Email: ${invoice.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(`${t.email}: ${invoice.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  // Client information
   pdf.setFontSize(12)
   pdf.setFont("helvetica", "bold")
-  pdf.text("Bill To:", margin, y)
+  pdf.text(t.billTo, margin, y)
   y += 7
 
   pdf.setFontSize(10)
@@ -92,10 +93,9 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
       let label = '';
       
       if (index === 0) {
-        label = 'Street: ';  // Prva linija - Address
+        label = `${t.street}: `;
       } else if (index === 1 && addressLines.length > 1) {
-        // Druga linija - City (pretpostavi da je sledeća linija)
-        label = 'City: ';
+        label = `${t.city}: `;
       }
       
       const fullText = label + line;
@@ -106,18 +106,16 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   
 
   if (invoice.clientDetails.phone) {
-    pdf.text(`Phone: ${invoice.clientDetails.phone}`, margin, y)
+    pdf.text(`${t.phone}: ${invoice.clientDetails.phone}`, margin, y)
     y += 5
   }
 
   if (invoice.clientDetails.email) {
-    pdf.text(`Email: ${invoice.clientDetails.email}`, margin, y)
+    pdf.text(`${t.email}: ${invoice.clientDetails.email}`, margin, y)
     y += 5
   }
 
   y += 10
-
-  // Invoice items table
   const tableTop = y
   const tableLeft = margin
   const tableRight = pageWidth - margin
@@ -129,15 +127,14 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     amount: tableWidth * 0.2,
   }
 
-  // Table headers
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft, y, tableWidth, 8, "F")
 
   pdf.setFont("helvetica", "bold")
-  pdf.text("Description", tableLeft + 2, y + 5)
-  pdf.text("Quantity", tableLeft + colWidths.description + 2, y + 5)
-  pdf.text("Unit Price", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
-  pdf.text("Total Value", tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
+  pdf.text(t.description, tableLeft + 2, y + 5)
+  pdf.text(t.quantity, tableLeft + colWidths.description + 2, y + 5)
+  pdf.text(t.unitPrice, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text(t.totalValue, tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
 
   y += 8
 
@@ -170,10 +167,9 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
   })
 
-  // Table footer (totals)
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
-  pdf.text("Subtotal:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text(t.subtotal, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
     formatCurrency(invoice.subtotal, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
@@ -181,18 +177,14 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   )
   y += 8
 
-  //pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   const reverseCharge = true
   if(reverseCharge){
     pdf.setFontSize(8)
-    pdf.text("Reverse Charge (Steuerschuldnerschaft des Leistungsempfängers)", 
-      tableLeft+ 2, 
-      y + 5
-    )
+    pdf.text(t.reverseCharge, tableLeft + 2, y + 5)
     pdf.setFontSize(10)
   }
   
-  pdf.text("Tax:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text(t.tax, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
     formatCurrency(invoice.tax, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
@@ -203,7 +195,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
    pdf.setFillColor(230, 230, 230)
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F") 
   pdf.setFont("helvetica", "bold")
-  pdf.text("Total:", tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
+  pdf.text(t.total, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
     formatCurrency(invoice.total, invoice.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
@@ -220,7 +212,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
     if (invoice.notes) {
       pdf.setFont("helvetica", "bold")
-      pdf.text("Notes:", margin, y)
+      pdf.text(t.notes, margin, y)
       y += 7
 
       pdf.setFont("helvetica", "normal")
@@ -230,7 +222,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
     if (invoice.terms) {
       pdf.setFont("helvetica", "bold")
-      pdf.text("Terms & Conditions:", margin, y)
+      pdf.text(t.termsAndConditions, margin, y)
       y += 7
 
       pdf.setFont("helvetica", "normal")
@@ -239,10 +231,9 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
   }
 
-// Payment Terms section
 pdf.setFontSize(10)
 pdf.setFont("helvetica", 'bold')
-pdf.text("Payment Terms:", margin, y)
+pdf.text(t.paymentTerms, margin, y)
 pdf.setFont("helvetica", 'normal')
 y += 6
 
@@ -270,10 +261,9 @@ y += 10
 
 
 
-  // Footer
   pdf.setFont("helvetica", "italic")
   pdf.setFontSize(9)
-  pdf.text("Thank you for your business!", pageWidth / 2, pageHeight - margin, { align: "center" })
+  pdf.text(t.thankYou, pageWidth / 2, pageHeight - margin, { align: "center" })
 
   // Add ByteBills branding
 /*   pdf.setFont("helvetica", "normal")

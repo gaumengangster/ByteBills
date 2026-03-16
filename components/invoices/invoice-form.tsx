@@ -35,6 +35,7 @@ const invoiceSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
+  clientLanguage: z.string().optional().default("en"),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   invoiceDate: z.date({
     required_error: "Invoice date is required",
@@ -70,6 +71,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
     invoiceNumber: generateInvoiceNumber(),
     invoiceDate: new Date(),
     dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+    clientLanguage: "en",
     currency: "EUR",
     unitOfWork: "M/D",
     taxRate: 20,
@@ -133,6 +135,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
         },
+        language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,
         invoiceDate: values.invoiceDate.toISOString(),
         dueDate: values.dueDate.toISOString(),

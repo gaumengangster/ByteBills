@@ -35,6 +35,7 @@ const invoiceSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
+  clientLanguage: z.string().optional().default("en"),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   invoiceDate: z.date({ required_error: "Invoice date is required" }),
   dueDate: z.date({ required_error: "Due date is required" }),
@@ -68,6 +69,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     clientEmail: invoice.clientDetails.email || "",
     clientPhone: invoice.clientDetails.phone || "",
     clientAddress: invoice.clientDetails.address || "",
+    clientLanguage: invoice.language || "en",
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: new Date(invoice.invoiceDate),
     dueDate: new Date(invoice.dueDate),
@@ -119,6 +121,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
         },
+        language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,
         invoiceDate: values.invoiceDate.toISOString(),
         dueDate: values.dueDate.toISOString(),
@@ -278,6 +281,28 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                           <FormControl>
                             <Textarea {...field} />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="clientLanguage"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Document Language</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || "en"}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="en">English</SelectItem>
+                              <SelectItem value="de">German (Deutsch)</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}

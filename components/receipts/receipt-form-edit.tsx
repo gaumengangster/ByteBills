@@ -38,6 +38,7 @@ const receiptSchema = z.object({
   clientEmail: z.string().email().optional().or(z.literal("")),
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
+  clientLanguage: z.string().optional().default("en"),
   receiptNumber: z.string().min(1, "Receipt number is required"),
   receiptDate: z.date({
     required_error: "Receipt date is required",
@@ -75,6 +76,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       clientEmail: receipt?.clientDetails?.email || "",
       clientPhone: receipt?.clientDetails?.phone || "",
       clientAddress: receipt?.clientDetails?.address || "",
+      clientLanguage: receipt?.language || "en",
       receiptNumber: receipt?.receiptNumber,
       receiptDate: new Date(receipt?.receiptDate),
       paymentMethod: receipt?.paymentMethod,
@@ -115,6 +117,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
         },
+        language: values.clientLanguage || "en",
         receiptNumber: values.receiptNumber,
         receiptDate: values.receiptDate.toISOString(),
         paymentMethod: values.paymentMethod,

@@ -5,6 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { Download, X } from "lucide-react"
+import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
+import { formatCurrency } from "@/lib/utils"
+import { toast } from "@/components/ui/use-toast"
 
 type InvoicePreviewProps = {
   isOpen: boolean
@@ -16,18 +19,12 @@ type InvoicePreviewProps = {
 export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: InvoicePreviewProps) {
   const [isPdfLoading, setIsPdfLoading] = useState(false)
 
-  // Find the selected company data
   const selectedCompany = companies.find((c) => c.id === invoiceData.companyId) || companies[0]
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount)
-  }
+  const currencyObj = { currency: invoiceData.currency || "EUR" }
 
-  // Calculate invoice totals
+  const fmtCurrency = (amount: number) => formatCurrency(amount, currencyObj)
+
   const calculateSubtotal = () => {
     const items = invoiceData.items || []
     return items.reduce((sum: number, item: any) => {
@@ -37,22 +34,56 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
     }, 0)
   }
 
+  const taxRate = invoiceData.taxRate ?? 0
   const calculateTax = () => {
-    return calculateSubtotal() * 0.1 // 10% tax rate example
+    return calculateSubtotal() * (taxRate / 100)
   }
 
   const calculateTotal = () => {
     return calculateSubtotal() + calculateTax()
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     setIsPdfLoading(true)
+    try {
+      const subtotal = calculateSubtotal()
+      const tax = calculateTax()
+      const total = calculateTotal()
 
-    // In a real implementation, this would generate and download the PDF
-    // For this example, we'll just wait a second and then stop loading
-    setTimeout(() => {
+      const pdfData = {
+        ...invoiceData,
+        companyDetails: {
+          name: selectedCompany?.name || "",
+          address: selectedCompany?.businessDetails?.address || "",
+          city: selectedCompany?.businessDetails?.city || "",
+          country: selectedCompany?.businessDetails?.country || "",
+          email: selectedCompany?.businessDetails?.email || "",
+          phone: selectedCompany?.businessDetails?.phone || "",
+        },
+        clientDetails: {
+          name: invoiceData.clientName,
+          address: invoiceData.clientAddress || "",
+          email: invoiceData.clientEmail || "",
+          phone: invoiceData.clientPhone || "",
+        },
+        invoiceDate: invoiceData.invoiceDate instanceof Date ? invoiceData.invoiceDate.toISOString() : invoiceData.invoiceDate,
+        dueDate: invoiceData.dueDate instanceof Date ? invoiceData.dueDate.toISOString() : invoiceData.dueDate,
+        subtotal,
+        tax,
+        total,
+        language: invoiceData.clientLanguage || "en",
+      }
+
+      const pdfBlob = await generateInvoicePDF(pdfData)
+      downloadPDF(pdfBlob, `Invoice-${invoiceData.invoiceNumber}.pdf`)
+
+      toast({ title: "PDF generated", description: "Your invoice PDF has been downloaded." })
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      toast({ title: "Error", description: "Failed to generate PDF. Please try again.", variant: "destructive" })
+    } finally {
       setIsPdfLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -142,9 +173,9 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   <div key={index} className="grid grid-cols-12 gap-4 p-4">
                     <div className="col-span-5">{item.description || "Item Description"}</div>
                     <div className="col-span-2 text-center">{item.quantity || 0}</div>
-                    <div className="col-span-2 text-right">{formatCurrency(item.unitPrice || 0)}</div>
+                    <div className="col-span-2 text-right">{fmtCurrency(item.unitPrice || 0)}</div>
                     <div className="col-span-3 text-right">
-                      {formatCurrency((item.quantity || 0) * (item.unitPrice || 0))}
+                      {fmtCurrency((item.quantity || 0) * (item.unitPrice || 0))}
                     </div>
                   </div>
                 ))}
@@ -155,15 +186,15 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   <div className="w-1/3 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span>{formatCurrency(calculateSubtotal())}</span>
+                      <span>{fmtCurrency(calculateSubtotal())}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax (10%):</span>
-                      <span>{formatCurrency(calculateTax())}</span>
+                      <span className="text-muted-foreground">Tax ({taxRate}%):</span>
+                      <span>{fmtCurrency(calculateTax())}</span>
                     </div>
                     <div className="flex justify-between font-medium pt-2 border-t">
                       <span>Total:</span>
-                      <span>{formatCurrency(calculateTotal())}</span>
+                      <span>{fmtCurrency(calculateTotal())}</span>
                     </div>
                   </div>
                 </div>

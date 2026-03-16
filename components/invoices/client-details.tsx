@@ -40,6 +40,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
     email: "",
     phone: "",
     address: "",
+    language: "en",
   })
   const [savedClients, setSavedClients] = useState<any[]>([])
 
@@ -97,6 +98,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
         email: newClient.email,
         phone: newClient.phone,
         address: newClient.address,
+        language: newClient.language || "en",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
@@ -115,12 +117,12 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
         description: `${newClient.name} has been saved to your clients.`,
       })
 
-      // Reset form
       setNewClient({
         name: "",
         email: "",
         phone: "",
         address: "",
+        language: "en",
       })
     } catch (error) {
       console.error("Error saving client:", error)
@@ -140,6 +142,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
       form.setValue("clientEmail", selectedClient.email)
       form.setValue("clientPhone", selectedClient.phone)
       form.setValue("clientAddress", selectedClient.address)
+      form.setValue("clientLanguage", selectedClient.language || "en")
       setSelectedClientId(clientId)
     }
   }
@@ -243,6 +246,23 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       placeholder="Client address"
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="client-language" className="text-sm font-medium">
+                      Document Language
+                    </label>
+                    <Select
+                      value={newClient.language}
+                      onValueChange={(value) => setNewClient({ ...newClient, language: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="de">German (Deutsch)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddClientDialogOpen(false)}>
@@ -314,6 +334,28 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       <FormControl>
                         <Textarea {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="clientLanguage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Document Language</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || "en"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="de">German (Deutsch)</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
