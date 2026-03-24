@@ -7,7 +7,6 @@ import { Navbar } from "@/components/navbar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BusinessSettings } from "@/components/settings/business-settings"
 import { CompanyList } from "@/components/settings/company-list"
-import { AccountSettings } from "@/components/settings/account-settings"
 import { AppSettings } from "@/components/settings/app-settings"
 import { doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -60,10 +59,9 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="companies" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="business">Business Details</TabsTrigger>
-            <TabsTrigger value="account">Account</TabsTrigger>
             <TabsTrigger value="app">App Settings</TabsTrigger>
           </TabsList>
 
@@ -115,18 +113,6 @@ export default function SettingsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="account">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium">Account Settings</h3>
-                <p className="text-sm text-muted-foreground">Manage your account details and subscription.</p>
-                <Separator className="my-4" />
-              </div>
-
-              <AccountSettings user={user} userData={userData} loading={loadingUserData} />
-            </div>
-          </TabsContent>
-
           <TabsContent value="app">
             <div className="space-y-6">
               <div>
@@ -143,4 +129,3 @@ export default function SettingsPage() {
     </>
   )
 }
-
