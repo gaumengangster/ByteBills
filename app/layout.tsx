@@ -9,7 +9,6 @@ import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ["latin"] })
 
-
 export const metadata: Metadata = {
   title: "ByteBills - Quick Invoicing",
   description: "Create or generate invoices, receipts, delivery notes and more with ByteBills",
