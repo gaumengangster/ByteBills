@@ -291,13 +291,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {invoice.clientDetails.registrationNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >Reg. No.</span>
                       <span>{invoice.clientDetails.registrationNumber}</span>
                     </div>
                   )}
                   {invoice.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >VAT No.</span>
                       <span>{invoice.clientDetails.vatNumber}</span>
                     </div>
                   )}

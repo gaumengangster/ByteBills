@@ -335,13 +335,13 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {receipt.clientDetails.registrationNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >Reg. No.</span>
                       <span>{receipt.clientDetails.registrationNumber}</span>
                     </div>
                   )}
                   {receipt.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >VAT No.</span>
                       <span>{receipt.clientDetails.vatNumber}</span>
                     </div>
                   )}

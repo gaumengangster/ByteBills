@@ -307,13 +307,13 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
                   )}
                   {deliveryNote.clientDetails.registrationNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >Reg. No.</span>
                       <span>{deliveryNote.clientDetails.registrationNumber}</span>
                     </div>
                   )}
                   {deliveryNote.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mr-2" >VAT No.</span>
                       <span>{deliveryNote.clientDetails.vatNumber}</span>
                     </div>
                   )}
