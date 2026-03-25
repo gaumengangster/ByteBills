@@ -313,9 +313,9 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
                   )}
                   {deliveryNote.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{deliveryNote.clientDetails.vatNumber}</span>
-                  </div>
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.clientDetails.vatNumber}</span>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -371,6 +371,23 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
                       <span>{deliveryNote.companyDetails.phone}</span>
+                    </div>
+                  )}
+                  {(deliveryNote.companyDetails.bankName || deliveryNote.companyDetails.iban) && (
+                    <div className="pt-3 mt-3 border-t">
+                      <h4 className="text-sm font-medium mb-2">Bank Details</h4>
+                      {deliveryNote.companyDetails.bankName && (
+                        <p className="text-sm text-muted-foreground">Bank: {deliveryNote.companyDetails.bankName}</p>
+                      )}
+                      {deliveryNote.companyDetails.iban && (
+                        <p className="text-sm text-muted-foreground">IBAN: {deliveryNote.companyDetails.iban}</p>
+                      )}
+                      {deliveryNote.companyDetails.swiftBic && (
+                        <p className="text-sm text-muted-foreground">SWIFT/BIC: {deliveryNote.companyDetails.swiftBic}</p>
+                      )}
+                      {deliveryNote.companyDetails.bankAddress && (
+                        <p className="text-sm text-muted-foreground">Bank Address: {deliveryNote.companyDetails.bankAddress}</p>
+                      )}
                     </div>
                   )}
                 </div>

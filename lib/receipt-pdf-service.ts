@@ -3,7 +3,7 @@ import { format } from "date-fns"
 import { de as dateFnsDe } from "date-fns/locale"
 import { getTranslations, getPaymentMethodTranslated } from "./translations"
 
-export async function generateReceiptPDF(receipt: any): Promise<Blob> {
+export async function ReceiptPDF(receipt: any): Promise<Blob> {
   const lang = receipt.language || "en"
   const t = getTranslations(lang)
   const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
@@ -55,23 +55,23 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   let companyDetailY = companyY + 5
 
   if (receipt.companyDetails.address) {
-    pdf.text(`${t.street}: ${receipt.companyDetails.address}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(receipt.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (receipt.companyDetails.city || receipt.companyDetails.country) {
     const location = [receipt.companyDetails.city, receipt.companyDetails.country].filter(Boolean).join(", ")
-    pdf.text(`${t.city}: ${location}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(location, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (receipt.companyDetails.phone) {
-    pdf.text(`${t.phone}: ${receipt.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(receipt.companyDetails.phone, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (receipt.companyDetails.email) {
-    pdf.text(`${t.email}: ${receipt.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(receipt.companyDetails.email, rightMargin, companyDetailY, { align: "right" })
   }
 
   pdf.setFontSize(12)
@@ -92,28 +92,19 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
       .map((line: string) => line.trim())
       .filter((line: string) => line.length > 0)
 
-    addressLines.forEach((line: string, index: number) => {
-      let label = ""
-
-      if (index === 0) {
-        label = `${t.street}: `
-      } else if (index === 1 && addressLines.length > 1) {
-        label = `${t.city}: `
-      }
-
-      const fullText = label + line
-      pdf.text(fullText as any, margin, y)
+    addressLines.forEach((line: string) => {
+      pdf.text(line, margin, y)
       y += 5
     })
   }
 
   if (receipt.clientDetails.phone) {
-    pdf.text(`${t.phone}: ${receipt.clientDetails.phone}`, margin, y)
+    pdf.text(receipt.clientDetails.phone, margin, y)
     y += 5
   }
 
   if (receipt.clientDetails.email) {
-    pdf.text(`${t.email}: ${receipt.clientDetails.email}`, margin, y)
+    pdf.text(receipt.clientDetails.email, margin, y)
     y += 5
   }
   if (receipt.clientDetails.registrationNumber) {
@@ -241,36 +232,36 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
     y = addWrappedText(receipt.notes, margin, y, tableWidth, 5)
     y += 10
   }
-
-  pdf.setFontSize(10)
-  pdf.setFont("helvetica", "bold")
-  pdf.text(t.paymentTerms, margin, y)
-  pdf.setFont("helvetica", "normal")
-  y += 6
-
-  const paymentDetails = [
-    { label: "Bank:", value: "Wise Europe SA" },
-    { label: "IBAN:", value: "BE67 9671 9351 7487" },
-    { label: "Bank code (SWIFT/BIC):", value: "TRWIBEB1XXX" },
-    {
-      label: "Bank Address:",
-      value: "Wise Europe SA, Avenue Louise 54, Room S52, 1050, Belgium",
-    },
-  ]
-
-  pdf.setFontSize(9)
-  paymentDetails.forEach(({ label, value }) => {
+  const hasBankDetails = receipt.companyDetails.bankName || receipt.companyDetails.iban
+  if (hasBankDetails) {
+    pdf.setFontSize(10)
     pdf.setFont("helvetica", "bold")
-    pdf.text(label, margin, y)
-
+    pdf.text(t.paymentTerms, margin, y)
     pdf.setFont("helvetica", "normal")
-    pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)
-
     y += 6
-  })
 
-  pdf.setFontSize(12)
-  y += 10
+    const paymentDetails = [
+      { label: t.bank, value: receipt.companyDetails.bankName },
+      { label: t.iban, value: receipt.companyDetails.iban },
+      { label: t.bankCode, value: receipt.companyDetails.swiftBic },
+      { label: t.bankAddress, value: receipt.companyDetails.bankAddress }
+    ]
+
+    pdf.setFontSize(9)
+    paymentDetails.forEach(({ label, value }) => {
+      pdf.setFont("helvetica", "bold")
+      pdf.text(label, margin, y)
+
+      pdf.setFont("helvetica", "normal")
+      pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)
+
+      y += 6
+    })
+
+    pdf.setFontSize(12)
+    y += 10
+  }
+
 
   pdf.setFont("helvetica", "italic")
   pdf.setFontSize(9)

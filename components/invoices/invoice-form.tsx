@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { addDoc, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -22,6 +22,7 @@ import { InvoiceItems } from "./invoice-items"
 import { InvoicePreview } from "./invoice-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { generateNextDocumentNumber } from "@/lib/document-number"
 
 type InvoiceFormProps = {
   userId: string
@@ -70,7 +71,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<Partial<InvoiceFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
-    invoiceNumber: generateInvoiceNumber(),
+    invoiceNumber: "",
     invoiceDate: new Date(),
     dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
     clientLanguage: "en",
@@ -93,17 +94,15 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
   const taxRate = form.watch("taxRate")
   const [showItemErrors, setShowItemErrors] = useState(false)
 
-  function generateInvoiceNumber() {
-    const prefix = "INV"
-    const randomNumbers = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")
-    const date = new Date()
-    const year = date.getFullYear().toString().substr(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, "0")
 
-    return `${prefix}-${year}${month}-${randomNumbers}`
-  }
+  useEffect(() => {
+    if (userId) {
+      generateNextDocumentNumber(userId, "invoices")
+        .then((num) => {
+          form.setValue("invoiceNumber", num)
+        })
+    }
+  }, [userId])
 
   // Handle form submission
   async function onSubmit(values: InvoiceFormValues) {
@@ -130,6 +129,11 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           logo: selectedCompany?.logo || null,
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+
         },
         clientDetails: {
           name: values.clientName,

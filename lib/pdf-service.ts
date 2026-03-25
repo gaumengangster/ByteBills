@@ -50,23 +50,23 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   let companyDetailY = companyY + 5
 
   if (invoice.companyDetails.address) {
-    pdf.text(`${t.street}: ${invoice.companyDetails.address}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(invoice.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.city || invoice.companyDetails.country) {
     const location = [invoice.companyDetails.city, invoice.companyDetails.country].filter(Boolean).join(", ")
-    pdf.text(`${t.city}: ${location}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(location, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.phone) {
-    pdf.text(`${t.phone}: ${invoice.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(invoice.companyDetails.phone, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (invoice.companyDetails.email) {
-    pdf.text(`${t.email}: ${invoice.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(invoice.companyDetails.email, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
@@ -81,37 +81,27 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   y += 5
 
   if (invoice.clientDetails?.address) {
-    // Type guard + safe split
     const address = invoice.clientDetails.address as string
     const addressLines = address
-      .replace(/\\n/g, '\n')  // ← Pretvori literal u pravi newline
+      .replace(/\\n/g, '\n') 
       .split('\n')
         .map((line: string) => line.trim())
         .filter((line: string) => line.length > 0)
     
-    addressLines.forEach((line: string, index: number) => {
-      let label = '';
-      
-      if (index === 0) {
-        label = `${t.street}: `;
-      } else if (index === 1 && addressLines.length > 1) {
-        label = `${t.city}: `;
-      }
-      
-      const fullText = label + line;
-      pdf.text(fullText as any, margin, y)  // ← pdf-lib tip fix
+    addressLines.forEach((line: string) => {
+      pdf.text(line, margin, y)
       y += 5
     })
   }
   
 
   if (invoice.clientDetails.phone) {
-    pdf.text(`${t.phone}: ${invoice.clientDetails.phone}`, margin, y)
+    pdf.text(invoice.clientDetails.phone, margin, y)
     y += 5
   }
 
   if (invoice.clientDetails.email) {
-    pdf.text(`${t.email}: ${invoice.clientDetails.email}`, margin, y)
+    pdf.text(invoice.clientDetails.email, margin, y)
     y += 5
   }
   if (invoice.clientDetails.registrationNumber) {
@@ -238,34 +228,36 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
       y += 10
     }
   }
-
-pdf.setFontSize(10)
-pdf.setFont("helvetica", 'bold')
-pdf.text(t.paymentTerms, margin, y)
-pdf.setFont("helvetica", 'normal')
-y += 6
-
-const paymentDetails = [
-  { label: "Bank:", value: "Wise Europe SA" },
-  { label: "IBAN:", value: "BE67 9671 9351 7487" },
-  { label: "Bank code (SWIFT/BIC):", value: "TRWIBEB1XXX" },
-  { label: "Bank Address:", value: "Wise Europe SA, Avenue Louise 54, Room S52, 1050, Belgium" }
-]
-
-pdf.setFontSize(9)
-paymentDetails.forEach(({ label, value }) => {
-  // Bold label + value U ISTOM REDU (bez razmaka)
+const hasBankDetails = invoice.companyDetails.bankName || invoice.companyDetails.iban
+if (hasBankDetails) {
+  pdf.setFontSize(10)
   pdf.setFont("helvetica", 'bold')
-  pdf.text(label, margin, y)
-  
+  pdf.text(t.paymentTerms, margin, y)
   pdf.setFont("helvetica", 'normal')
-  pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)  // ← Dinamički x pozicija
-  
   y += 6
-})
+  
+  const paymentDetails = [
+    { label: t.bank, value: invoice.companyDetails.bankName },
+    { label: t.iban, value: invoice.companyDetails.iban },
+    { label: t.bankCode, value:  invoice.companyDetails.swiftBic },
+    { label: t.bankAddress, value: invoice.companyDetails.bankAddress }
+  ]
+  
+  pdf.setFontSize(9)
+  paymentDetails.forEach(({ label, value }) => {
+    pdf.setFont("helvetica", 'bold')
+    pdf.text(label, margin, y)
+    
+    pdf.setFont("helvetica", 'normal')
+    pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)  // ← Dinamički x pozicija
+    
+    y += 6
+  })
+  
+  pdf.setFontSize(12)  // Vrati na default
+  y += 10
+}
 
-pdf.setFontSize(12)  // Vrati na default
-y += 10
 
 
 

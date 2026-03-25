@@ -66,6 +66,11 @@ export function ReceiptPreview({
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+        
         },
         clientDetails: {
           name: receiptData.clientName,
@@ -150,18 +155,8 @@ export function ReceiptPreview({
                   )}
                   {receiptData.clientPhone && <div className="text-muted-foreground">{receiptData.clientPhone}</div>}
                   {receiptData.clientEmail && <div className="text-muted-foreground">{receiptData.clientEmail}</div>}
-                  {receiptData.clientRegistrationNumber && (
-                    <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{receiptData.clientRegistrationNumber}</span>
-                    </div>
-                  )}
-                  {receiptData.clientVatNumber && (
-                    <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{receiptData.clientVatNumber}</span>
-                  </div>
-                  )}
+                  {receiptData.clientEmail && <div className="text-muted-foreground">{receiptData.clientRegistrationNumber}</div>}
+                  {receiptData.clientEmail && <div className="text-muted-foreground">{receiptData.clientVatNumber}</div>}
                 </div>
               </div>
 

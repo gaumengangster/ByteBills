@@ -114,6 +114,11 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           logo: selectedCompany?.logo || null,
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+        
         },
         clientDetails: {
           name: values.clientName,

@@ -34,14 +34,19 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
-          registrationNumber: selectedCompany?.businessDetails?.registrationNumber || "",
-          vatNumber: selectedCompany?.businessDetails?.vatNumber || "",
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+          
         },
         clientDetails: {
           name: deliveryNoteData.clientName,
           address: deliveryNoteData.clientAddress || "",
           email: deliveryNoteData.clientEmail || "",
           phone: deliveryNoteData.clientPhone || "",
+          registrationNumber: deliveryNoteData.clientRegistrationNumber || "",
+          vatNumber: deliveryNoteData.clientVatNumber || "",
         },
         language: deliveryNoteData.clientLanguage || "en",
       }
@@ -117,17 +122,11 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
                   {deliveryNoteData.clientEmail && (
                     <div className="text-muted-foreground">{deliveryNoteData.clientEmail}</div>
                   )}
-                  {deliveryNoteData.clientRegistrationNumber && (
-                    <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{deliveryNoteData.clientRegistrationNumber}</span>
-                    </div>
+                  {deliveryNoteData.clientEmail && (
+                    <div className="text-muted-foreground">{deliveryNoteData.clientRegistrationNumber}</div>
                   )}
-                  {deliveryNoteData.clientVatNumber && (
-                    <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{deliveryNoteData.clientVatNumber}</span>
-                  </div>
+                  {deliveryNoteData.clientEmail && (
+                    <div className="text-muted-foreground">{deliveryNoteData.clientVatNumber}</div>
                   )}
                 </div>
               </div>

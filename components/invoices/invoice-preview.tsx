@@ -59,6 +59,11 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+        
         },
         clientDetails: {
           name: invoiceData.clientName,
@@ -142,18 +147,8 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   )}
                   {invoiceData.clientPhone && <div className="text-muted-foreground">{invoiceData.clientPhone}</div>}
                   {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientEmail}</div>}
-                  {invoiceData.clientRegistrationNumber && (
-                    <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{invoiceData.clientRegistrationNumber}</span>
-                    </div>
-                  )}
-                  {invoiceData.clientVatNumber && (
-                    <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{invoiceData.clientVatNumber}</span>
-                  </div>
-                  )}
+                  {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientRegistrationNumber}</div>}
+                  {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientVatNumber}</div>}
                 </div>
               </div>
 

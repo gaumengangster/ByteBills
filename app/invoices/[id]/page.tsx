@@ -12,7 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
-import {formatCurrency} from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
@@ -149,9 +149,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
           {user ?
             (<InvoiceActions invoice={invoice} userId={user.uid} onStatusChange={handleStatusChange} />)
-            : ( <p>Loading user data...</p> )
-          }        
-          </div>
+            : (<p>Loading user data...</p>)
+          }
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">
@@ -297,9 +297,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {invoice.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{invoice.clientDetails.vatNumber}</span>
-                  </div>
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{invoice.clientDetails.vatNumber}</span>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -344,6 +344,24 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
                       <span>{invoice.companyDetails.phone}</span>
+                    </div>
+                  )}
+
+                  {(invoice.companyDetails.bankName || invoice.companyDetails.iban) && (
+                    <div className="pt-3 mt-3 border-t">
+                      <h4 className="text-sm font-medium mb-2">Bank Details</h4>
+                      {invoice.companyDetails.bankName && (
+                        <p className="text-sm text-muted-foreground">Bank: {invoice.companyDetails.bankName}</p>
+                      )}
+                      {invoice.companyDetails.iban && (
+                        <p className="text-sm text-muted-foreground">IBAN: {invoice.companyDetails.iban}</p>
+                      )}
+                      {invoice.companyDetails.swiftBic && (
+                        <p className="text-sm text-muted-foreground">SWIFT/BIC: {invoice.companyDetails.swiftBic}</p>
+                      )}
+                      {invoice.companyDetails.bankAddress && (
+                        <p className="text-sm text-muted-foreground">Bank Address: {invoice.companyDetails.bankAddress}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -400,18 +418,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {invoice.clientDetails.phone && <div className="text-gray-600">{invoice.clientDetails.phone}</div>}
                   {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.email}</div>}
-                  {invoice.clientDetails.registrationNumber && (
-                    <div className="flex items-center">
-                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{invoice.clientDetails.registrationNumber}</span>
-                    </div>
-                  )}
-                  {invoice.clientDetails.vatNumber && (
-                    <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{invoice.clientDetails.vatNumber}</span>
-                  </div>
-                  )}
+                  {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.registrationNumber}</div>}
+                  {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.vatNumber}</div>}
                 </div>
               </div>
             </div>

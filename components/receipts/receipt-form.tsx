@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { addDoc, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -23,6 +23,7 @@ import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DocumentSettings } from "@/components/document-settings/document-settings" // Added import
+import { generateNextDocumentNumber } from "@/lib/document-number"
 
 type ReceiptFormProps = {
   userId: string
@@ -69,7 +70,7 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
   const [showItemErrors, setShowItemErrors] = useState(false)
   const [formData, setFormData] = useState<Partial<ReceiptFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
-    receiptNumber: generateReceiptNumber(),
+    receiptNumber: "",
     receiptDate: new Date(),
     paymentMethod: "card",
     items: [{ description: "", quantity: 1, unitPrice: 0 }],
@@ -83,17 +84,14 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
     defaultValues: formData as ReceiptFormValues,
   })
 
-  function generateReceiptNumber() {
-    const prefix = "RCT"
-    const randomNumbers = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")
-    const date = new Date()
-    const year = date.getFullYear().toString().substr(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, "0")
-
-    return `${prefix}-${year}${month}-${randomNumbers}`
-  }
+  useEffect(() => {
+    if (userId) {
+      generateNextDocumentNumber(userId, "receipts")
+        .then((num) => {
+          form.setValue("receiptNumber", num)
+        })
+    }
+  }, [userId])
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
@@ -120,6 +118,11 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           logo: selectedCompany?.logo || null,
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
+
         },
         clientDetails: {
           name: values.clientName,

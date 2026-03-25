@@ -69,12 +69,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   if (deliveryNote.companyDetails.phone) {
-    pdf.text(`${t.phone}: ${deliveryNote.companyDetails.phone}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(deliveryNote.companyDetails.phone, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
   if (deliveryNote.companyDetails.email) {
-    pdf.text(`${t.email}: ${deliveryNote.companyDetails.email}`, rightMargin, companyDetailY, { align: "right" })
+    pdf.text(deliveryNote.companyDetails.email, rightMargin, companyDetailY, { align: "right" })
   }
 
   pdf.setFontSize(12)
@@ -93,12 +93,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   if (deliveryNote.clientDetails.phone) {
-    pdf.text(`${t.phone}: ${deliveryNote.clientDetails.phone}`, margin, y)
+    pdf.text(deliveryNote.clientDetails.phone, margin, y)
     y += 5
   }
 
   if (deliveryNote.clientDetails.email) {
-    pdf.text(`${t.email}: ${deliveryNote.clientDetails.email}`, margin, y)
+    pdf.text(deliveryNote.clientDetails.email, margin, y)
     y += 5
   }
   if (deliveryNote.clientDetails.registrationNumber) {

@@ -51,6 +51,10 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
       phone: selectedCompany?.businessDetails?.phone || "",
       website: selectedCompany?.businessDetails?.website || "",
       taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
+      bankName: selectedCompany?.businessDetails?.bankName || "",
+      iban: selectedCompany?.businessDetails?.iban || "",
+      swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+      bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
     },
   })
 
@@ -72,6 +76,10 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
             phone: selected.businessDetails?.phone || "",
             website: selected.businessDetails?.website || "",
             taxNumber: selected.businessDetails?.taxNumber || "",
+            bankName: selected.businessDetails?.bankName || "",
+            iban: selected.businessDetails?.iban || "",
+            swiftBic: selected.businessDetails?.swiftBic || "",
+            bankAddress: selected.businessDetails?.bankAddress || "",
           },
         })
       }
@@ -467,6 +475,26 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
                     onChange={handleInputChange}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="business-bankName">Bank Name</Label>
+                <Input id="business-bankName" name="businessDetails.bankName" value={formData.businessDetails.bankName} onChange={handleInputChange} />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="business-iban">IBAN</Label>
+                <Input id="business-iban" name="businessDetails.iban" value={formData.businessDetails.iban} onChange={handleInputChange} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="business-swiftBic">SWIFT/BIC</Label>
+                <Input id="business-swiftBic" name="businessDetails.swiftBic" value={formData.businessDetails.swiftBic} onChange={handleInputChange} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="business-bankAddress">Bank Address</Label>
+                <Textarea id="business-bankAddress" name="businessDetails.bankAddress" value={formData.businessDetails.bankAddress} onChange={handleInputChange} rows={3} />
               </div>
             </div>
           </CardContent>

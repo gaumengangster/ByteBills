@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {formatCurrency} from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 
 export default function ReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
@@ -153,7 +153,7 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
- 
+
 
   if (loading || loadingReceipt) {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>
@@ -341,9 +341,9 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {receipt.clientDetails.vatNumber && (
                     <div className="flex items-center">
-                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <span>{receipt.clientDetails.vatNumber}</span>
-                  </div>
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{receipt.clientDetails.vatNumber}</span>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -388,6 +388,24 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
                       <span>{receipt.companyDetails.phone}</span>
+                    </div>
+                  )}
+
+                  {(receipt.companyDetails.bankName || receipt.companyDetails.iban) && (
+                    <div className="pt-3 mt-3 border-t">
+                      <h4 className="text-sm font-medium mb-2">Bank Details</h4>
+                      {receipt.companyDetails.bankName && (
+                        <p className="text-sm text-muted-foreground">Bank: {receipt.companyDetails.bankName}</p>
+                      )}
+                      {receipt.companyDetails.iban && (
+                        <p className="text-sm text-muted-foreground">IBAN: {receipt.companyDetails.iban}</p>
+                      )}
+                      {receipt.companyDetails.swiftBic && (
+                        <p className="text-sm text-muted-foreground">SWIFT/BIC: {receipt.companyDetails.swiftBic}</p>
+                      )}
+                      {receipt.companyDetails.bankAddress && (
+                        <p className="text-sm text-muted-foreground">Bank Address: {receipt.companyDetails.bankAddress}</p>
+                      )}
                     </div>
                   )}
                 </div>

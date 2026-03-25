@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { addDoc, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -22,6 +22,7 @@ import { DeliveryNotePreview } from "./delivery-note-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { DocumentSettings } from "@/components/document-settings/document-settings" // Added DocumentSettings import
+import { generateNextDocumentNumber } from "@/lib/document-number"
 
 type DeliveryNoteFormProps = {
   userId?: string
@@ -68,7 +69,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
   const [currency, setCurrency] = useState("USD") // Added currency state
   const [formData, setFormData] = useState<Partial<DeliveryNoteFormValues>>({
     companyId: companies.find((c) => c.isDefault)?.id || companies[0]?.id,
-    deliveryNoteNumber: generateDeliveryNoteNumber(),
+    deliveryNoteNumber: "",
     deliveryDate: new Date(),
     items: [{ description: "", quantity: 1, notes: "" }],
     deliveryInstructions: "",
@@ -83,17 +84,14 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
     defaultValues: formData as DeliveryNoteFormValues,
   })
 
-  function generateDeliveryNoteNumber() {
-    const prefix = "DN"
-    const randomNumbers = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0")
-    const date = new Date()
-    const year = date.getFullYear().toString().substr(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, "0")
-
-    return `${prefix}-${year}${month}-${randomNumbers}`
-  }
+  useEffect(() => {
+    if (userId) {
+      generateNextDocumentNumber(userId, "deliveryNotes")
+        .then((num) => {
+          form.setValue("deliveryNoteNumber", num)
+        })
+    }
+  }, [userId])
 
   // Handle form submission
   async function onSubmit(values: DeliveryNoteFormValues) {
@@ -115,6 +113,10 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           logo: selectedCompany?.logo || null,
+          bankName: selectedCompany?.businessDetails?.bankName || "",
+          iban: selectedCompany?.businessDetails?.iban || "",
+          swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
+          bankAddress: selectedCompany?.businessDetails?.bankAddress || "",
         },
         clientDetails: {
           name: values.clientName,
@@ -226,7 +228,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {currentStep === 1 && <ClientDetails form={form} companies={companies}  userId={userId as string}/>}
+          {currentStep === 1 && <ClientDetails form={form} companies={companies} userId={userId as string} />}
 
           {currentStep === 2 && (
             <Card>
@@ -419,3 +421,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
     </div>
   )
 }
+function generateNextDocumentNumner(userId: string, arg1: string) {
+  throw new Error("Function not implemented.")
+}
+
