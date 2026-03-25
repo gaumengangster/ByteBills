@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { Download, X } from "lucide-react"
+import { Badge, Download, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
 import { toast } from "@/components/ui/use-toast"
@@ -72,6 +72,8 @@ export function ReceiptPreview({
           address: receiptData.clientAddress || "",
           email: receiptData.clientEmail || "",
           phone: receiptData.clientPhone || "",
+          registrationNumber: receiptData.clientRegistrationNumber || "",
+          vatNumber: receiptData.clientVatNumber || "",
         },
         receiptDate: receiptData.receiptDate instanceof Date ? receiptData.receiptDate.toISOString() : receiptData.receiptDate,
         currency,
@@ -148,6 +150,18 @@ export function ReceiptPreview({
                   )}
                   {receiptData.clientPhone && <div className="text-muted-foreground">{receiptData.clientPhone}</div>}
                   {receiptData.clientEmail && <div className="text-muted-foreground">{receiptData.clientEmail}</div>}
+                  {receiptData.clientRegistrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{receiptData.clientRegistrationNumber}</span>
+                    </div>
+                  )}
+                  {receiptData.clientVatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{receiptData.clientVatNumber}</span>
+                  </div>
+                  )}
                 </div>
               </div>
 

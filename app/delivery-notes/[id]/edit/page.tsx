@@ -33,6 +33,8 @@ const deliveryNoteSchema = z.object({
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   clientLanguage: z.string().optional().default("en"),
+  clientRegistrationNumber: z.string().optional(),
+  clientVatNumber: z.string().optional(),
   deliveryNoteNumber: z.string().min(1, "Delivery note number is required"),
   deliveryDate: z.date({
     required_error: "Delivery date is required",
@@ -74,6 +76,8 @@ interface DeliveryNoteData {
     email?: string
     phone?: string
     address?: string
+    registrationNumber?: string
+    vatNumber?: string
   }
   deliveryNoteNumber: string
   deliveryDate: string
@@ -182,6 +186,8 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
           clientPhone: deliveryNoteData.clientDetails.phone || "",
           clientAddress: deliveryNoteData.clientDetails.address || "",
           clientLanguage: (deliveryNoteData as any).language || "en",
+          clientRegistrationNumber: deliveryNoteData.clientDetails.registrationNumber || "",
+          clientVatNumber: deliveryNoteData.clientDetails.vatNumber || "",
           deliveryNoteNumber: deliveryNoteData.deliveryNoteNumber,
           deliveryDate: new Date(deliveryNoteData.deliveryDate),
           deliveryAddress: deliveryNoteData.deliveryAddress || "",
@@ -234,6 +240,8 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
           email: values.clientEmail || "",
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
+          registrationNumber: values.clientRegistrationNumber || "",
+          vatNumber: values.clientVatNumber || "",
         },
         language: values.clientLanguage || "en",
         deliveryNoteNumber: values.deliveryNoteNumber,

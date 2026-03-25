@@ -36,6 +36,8 @@ const invoiceSchema = z.object({
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   clientLanguage: z.string().optional().default("en"),
+  clientRegistrationNumber: z.string().optional(),
+  clientVatNumber: z.string().optional(),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   invoiceDate: z.date({
     required_error: "Invoice date is required",
@@ -134,6 +136,8 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
           email: values.clientEmail || "",
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
+          registrationNumber: values.clientRegistrationNumber || "",
+          vatNumber: values.clientVatNumber || "",
         },
         language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,

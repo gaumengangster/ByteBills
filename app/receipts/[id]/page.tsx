@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format } from "date-fns"
-import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
+import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2, Badge } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
 import {
   AlertDialog,
@@ -332,6 +332,18 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
                       <span>{receipt.clientDetails.phone}</span>
                     </div>
+                  )}
+                  {receipt.clientDetails.registrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{receipt.clientDetails.registrationNumber}</span>
+                    </div>
+                  )}
+                  {receipt.clientDetails.vatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{receipt.clientDetails.vatNumber}</span>
+                  </div>
                   )}
                 </div>
               </CardContent>

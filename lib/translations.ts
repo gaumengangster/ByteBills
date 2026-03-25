@@ -46,6 +46,8 @@ type TranslationKeys = {
   bankTransfer: string
   paypal: string
   other: string
+  registrationNumber: string
+  vatNumber: string
 }
 
 const en: TranslationKeys = {
@@ -96,6 +98,8 @@ const en: TranslationKeys = {
   bankTransfer: "Bank Transfer",
   paypal: "PayPal",
   other: "Other",
+  registrationNumber: "Registration No.",
+  vatNumber: "VAT No.",
 }
 
 const de: TranslationKeys = {
@@ -146,6 +150,8 @@ const de: TranslationKeys = {
   bankTransfer: "Banküberweisung",
   paypal: "PayPal",
   other: "Sonstige",
+  registrationNumber: "Reg.-Nr.",
+  vatNumber: "USt-idNr.",
 }
 
 const translations: Record<string, TranslationKeys> = { en, de }

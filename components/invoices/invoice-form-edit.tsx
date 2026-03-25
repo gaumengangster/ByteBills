@@ -36,6 +36,8 @@ const invoiceSchema = z.object({
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   clientLanguage: z.string().optional().default("en"),
+  clientRegistrationNumber: z.string().optional(),
+  clientVatNumber: z.string().optional(),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   invoiceDate: z.date({ required_error: "Invoice date is required" }),
   dueDate: z.date({ required_error: "Due date is required" }),
@@ -70,6 +72,8 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     clientPhone: invoice.clientDetails.phone || "",
     clientAddress: invoice.clientDetails.address || "",
     clientLanguage: invoice.language || "en",
+    clientRegistrationNumber: invoice.clientDetails.registrationNumber || "",
+    clientVatNumber: invoice.clientDetails.vatNumber || "",
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: new Date(invoice.invoiceDate),
     dueDate: new Date(invoice.dueDate),
@@ -120,6 +124,8 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
           email: values.clientEmail || "",
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
+          registrationNumber: values.clientRegistrationNumber || "",
+          vatNumber: values.clientVatNumber || "",
         },
         language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,
@@ -303,6 +309,34 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                               <SelectItem value="de">German (Deutsch)</SelectItem>
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="clientRegistrationNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Registration Number</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="clientVatNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>VAT Number</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

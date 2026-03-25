@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { Download, X } from "lucide-react"
+import { Badge, Download, X } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
 
 type DeliveryNotePreviewProps = {
@@ -34,6 +34,8 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
+          registrationNumber: selectedCompany?.businessDetails?.registrationNumber || "",
+          vatNumber: selectedCompany?.businessDetails?.vatNumber || "",
         },
         clientDetails: {
           name: deliveryNoteData.clientName,
@@ -114,6 +116,18 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
                   )}
                   {deliveryNoteData.clientEmail && (
                     <div className="text-muted-foreground">{deliveryNoteData.clientEmail}</div>
+                  )}
+                  {deliveryNoteData.clientRegistrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNoteData.clientRegistrationNumber}</span>
+                    </div>
+                  )}
+                  {deliveryNoteData.clientVatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{deliveryNoteData.clientVatNumber}</span>
+                  </div>
                   )}
                 </div>
               </div>

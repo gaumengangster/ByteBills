@@ -116,6 +116,14 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
     pdf.text(`${t.email}: ${receipt.clientDetails.email}`, margin, y)
     y += 5
   }
+  if (receipt.clientDetails.registrationNumber) {
+    pdf.text(`${t.registrationNumber}: ${receipt.clientDetails.registrationNumber}`, margin, y)
+    y += 5
+  }
+  if (receipt.clientDetails.vatNumber) {
+    pdf.text(`${t.vatNumber}: ${receipt.clientDetails.vatNumber}`, margin, y)
+    y += 5
+  }
 
   y += 10
   const tableLeft = margin

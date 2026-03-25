@@ -101,6 +101,14 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     pdf.text(`${t.email}: ${deliveryNote.clientDetails.email}`, margin, y)
     y += 5
   }
+  if (deliveryNote.clientDetails.registrationNumber) {
+    pdf.text(`${t.registrationNumber}: ${deliveryNote.clientDetails.registrationNumber}`, margin, y)
+    y += 5
+  }
+  if (deliveryNote.clientDetails.vatNumber) {
+    pdf.text(`${t.vatNumber}: ${deliveryNote.clientDetails.vatNumber}`, margin, y)
+    y += 5
+  }
 
   if (deliveryNote.deliveryAddress && deliveryNote.deliveryAddress !== deliveryNote.clientDetails.address) {
     y += 5

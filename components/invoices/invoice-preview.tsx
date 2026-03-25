@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { Download, X } from "lucide-react"
+import { Badge, Download, X } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
@@ -65,6 +65,8 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
           address: invoiceData.clientAddress || "",
           email: invoiceData.clientEmail || "",
           phone: invoiceData.clientPhone || "",
+          registrationNumber: invoiceData.clientRegistrationNumber || "",
+          vatNumber: invoiceData.clientVatNumber || "",
         },
         invoiceDate: invoiceData.invoiceDate instanceof Date ? invoiceData.invoiceDate.toISOString() : invoiceData.invoiceDate,
         dueDate: invoiceData.dueDate instanceof Date ? invoiceData.dueDate.toISOString() : invoiceData.dueDate,
@@ -140,6 +142,18 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   )}
                   {invoiceData.clientPhone && <div className="text-muted-foreground">{invoiceData.clientPhone}</div>}
                   {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientEmail}</div>}
+                  {invoiceData.clientRegistrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{invoiceData.clientRegistrationNumber}</span>
+                    </div>
+                  )}
+                  {invoiceData.clientVatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{invoiceData.clientVatNumber}</span>
+                  </div>
+                  )}
                 </div>
               </div>
 

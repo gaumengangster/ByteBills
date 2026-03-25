@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { format } from "date-fns"
-import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
+import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2, Badge } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
 import { use } from "react"
 import {
@@ -304,6 +304,18 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
                       <span>{deliveryNote.clientDetails.phone}</span>
                     </div>
+                  )}
+                  {deliveryNote.clientDetails.registrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{deliveryNote.clientDetails.registrationNumber}</span>
+                    </div>
+                  )}
+                  {deliveryNote.clientDetails.vatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{deliveryNote.clientDetails.vatNumber}</span>
+                  </div>
                   )}
                 </div>
               </CardContent>

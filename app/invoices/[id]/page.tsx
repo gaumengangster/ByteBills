@@ -289,6 +289,18 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                       <span>{invoice.clientDetails.phone}</span>
                     </div>
                   )}
+                  {invoice.clientDetails.registrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{invoice.clientDetails.registrationNumber}</span>
+                    </div>
+                  )}
+                  {invoice.clientDetails.vatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{invoice.clientDetails.vatNumber}</span>
+                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -388,6 +400,18 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {invoice.clientDetails.phone && <div className="text-gray-600">{invoice.clientDetails.phone}</div>}
                   {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.email}</div>}
+                  {invoice.clientDetails.registrationNumber && (
+                    <div className="flex items-center">
+                      <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <span>{invoice.clientDetails.registrationNumber}</span>
+                    </div>
+                  )}
+                  {invoice.clientDetails.vatNumber && (
+                    <div className="flex items-center">
+                    <Badge className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <span>{invoice.clientDetails.vatNumber}</span>
+                  </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -37,6 +37,8 @@ const receiptSchema = z.object({
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   clientLanguage: z.string().optional().default("en"),
+  clientRegistrationNumber: z.string().optional(),
+  clientVatNumber: z.string().optional(),
   receiptNumber: z.string().min(1, "Receipt number is required"),
   receiptDate: z.date({
     required_error: "Receipt date is required",
@@ -124,6 +126,8 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
           email: values.clientEmail || "",
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
+          registrationNumber: values.clientRegistrationNumber || "",
+          vatNumber: values.clientVatNumber || "",
         },
         language: values.clientLanguage || "en",
         receiptNumber: values.receiptNumber,

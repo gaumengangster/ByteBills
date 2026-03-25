@@ -40,6 +40,8 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
     email: "",
     phone: "",
     address: "",
+    registrationNumber: "",
+    vatNumber: "",
     language: "en",
   })
   const [savedClients, setSavedClients] = useState<any[]>([])
@@ -98,6 +100,8 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
         email: newClient.email,
         phone: newClient.phone,
         address: newClient.address,
+        registrationNumber: newClient.registrationNumber,
+        vatNumber: newClient.vatNumber,
         language: newClient.language || "en",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -123,6 +127,8 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
         phone: "",
         address: "",
         language: "en",
+        registrationNumber: "",
+        vatNumber: "",
       })
     } catch (error) {
       console.error("Error saving client:", error)
@@ -143,6 +149,8 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
       form.setValue("clientPhone", selectedClient.phone)
       form.setValue("clientAddress", selectedClient.address)
       form.setValue("clientLanguage", selectedClient.language || "en")
+      form.setValue("clientRegistrationNumber", selectedClient.registrationNumber || "")
+      form.setValue("clientVatNumber", selectedClient.vatNumber || "")
       setSelectedClientId(clientId)
     }
   }
@@ -233,6 +241,32 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       onChange={handleNewClientChange}
                       placeholder="+1 234 567 890"
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <label htmlFor="client-registration-number" className="text-sm font-medium">
+                        Registration Number
+                      </label>
+                      <Input
+                        id="client-registration-number"
+                        name="registrationNumber"
+                        value={newClient.registrationNumber}
+                        onChange={handleNewClientChange}
+                        placeholder="Registration number"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label htmlFor="client-vat-number" className="text-sm font-medium">
+                        VAT Number
+                      </label>
+                      <Input
+                        id="client-vat-number"
+                        name="vatNumber"
+                        value={newClient.vatNumber}
+                        onChange={handleNewClientChange}
+                        placeholder="VAT number"
+                      />
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <label htmlFor="client-address" className="text-sm font-medium">
@@ -360,6 +394,34 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                     </FormItem>
                   )}
                 />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="clientRegistrationNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Registration Number</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Registration number" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="clientVatNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>VAT Number</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="VAT number DE123456789" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="existing">

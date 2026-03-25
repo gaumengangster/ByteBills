@@ -114,6 +114,14 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     pdf.text(`${t.email}: ${invoice.clientDetails.email}`, margin, y)
     y += 5
   }
+  if (invoice.clientDetails.registrationNumber) {
+    pdf.text(`${t.registrationNumber}: ${invoice.clientDetails.registrationNumber}`, margin, y)
+    y += 5
+  }
+  if (invoice.clientDetails.vatNumber) {
+    pdf.text(`${t.vatNumber}: ${invoice.clientDetails.vatNumber}`, margin, y)
+    y += 5
+  }
 
   y += 10
   const tableTop = y

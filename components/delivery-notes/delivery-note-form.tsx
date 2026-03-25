@@ -37,6 +37,8 @@ const deliveryNoteSchema = z.object({
   clientAddress: z.string().optional(),
   clientLanguage: z.string().optional().default("en"),
   deliveryNoteNumber: z.string().min(1, "Delivery note number is required"),
+  clientRegistrationNumber: z.string().optional(),
+  clientVatNumber: z.string().optional(),
   deliveryDate: z.date({
     required_error: "Delivery date is required",
   }),
@@ -119,6 +121,8 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
           email: values.clientEmail || "",
           phone: values.clientPhone || "",
           address: values.clientAddress || "",
+          registrationNumber: values.clientRegistrationNumber || "",
+          vatNumber: values.clientVatNumber || "",
         },
         language: values.clientLanguage || "en",
         deliveryNoteNumber: values.deliveryNoteNumber,
