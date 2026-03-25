@@ -3,7 +3,7 @@ import { format } from "date-fns"
 import { de as dateFnsDe } from "date-fns/locale"
 import { getTranslations, getPaymentMethodTranslated } from "./translations"
 
-export async function ReceiptPDF(receipt: any): Promise<Blob> {
+export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   const lang = receipt.language || "en"
   const t = getTranslations(lang)
   const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined

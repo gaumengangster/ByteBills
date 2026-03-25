@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast"
 import { Download, Edit, Eye, Receipt, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
-import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { downloadReceiptPDF, generateReceiptPDF } from "@/lib/receipt-pdf-service"
 import {formatCurrency} from "@/lib/utils"
 
 export default function ReceiptsPage() {
@@ -355,3 +355,4 @@ export default function ReceiptsPage() {
     </>
   )
 }
+
