@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { Badge, Download, X } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 
 type DeliveryNotePreviewProps = {
   isOpen: boolean
@@ -52,7 +53,7 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
       }
 
       const pdfBlob = await generateDeliveryNotePDF(pdfData)
-      downloadDeliveryNotePDF(pdfBlob, `delivery-note-${deliveryNoteData.deliveryNoteNumber}.pdf`)
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(pdfData))
     } catch (error) {
       console.error("Error generating PDF:", error)
     } finally {

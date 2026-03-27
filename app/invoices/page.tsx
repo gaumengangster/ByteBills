@@ -48,7 +48,16 @@ import {
 import { EmailInvoiceDialog } from "@/components/invoices/email-invoice-dialog"
 import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
-import {formatCurrency} from "@/lib/utils"
+import { buildDocumentFilename } from "@/lib/document-filename"
+import { formatCurrency } from "@/lib/utils"
+import { fetchEurRatesForDocumentDates, type EurRatesByDocumentDate } from "@/lib/eur-rates"
+import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
+import {
+  formatDocumentListDate,
+  formatListEurAmount,
+  listDocumentEurRow,
+  normalizeListCurrency,
+} from "@/lib/document-list-eur"
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth()
@@ -64,6 +73,7 @@ export default function InvoicesPage() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
+  const [eurRatesByDocDate, setEurRatesByDocDate] = useState<EurRatesByDocumentDate | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -97,6 +107,32 @@ export default function InvoicesPage() {
       fetchInvoices()
     }
   }, [user])
+
+  useEffect(() => {
+    if (!invoices.length) {
+      setEurRatesByDocDate({})
+      return
+    }
+    const keys = new Set<string>()
+    for (const inv of invoices) {
+      const d = getRevenueDocumentDate({
+        type: "invoices",
+        invoiceDate: inv.invoiceDate,
+        receiptDate: undefined,
+      })
+      if (!Number.isNaN(d.getTime())) {
+        keys.add(format(d, "yyyy-MM-dd"))
+      }
+    }
+    let cancelled = false
+    ;(async () => {
+      const r = await fetchEurRatesForDocumentDates([...keys])
+      if (!cancelled) setEurRatesByDocDate(r)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [invoices])
 
   useEffect(() => {
     // Apply filters
@@ -187,7 +223,7 @@ export default function InvoicesPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateInvoicePDF(invoice)
-      downloadPDF(pdfBlob, `Invoice-${invoice.invoiceNumber}.pdf`)
+      downloadPDF(pdfBlob, buildDocumentFilename(invoice))
 
       toast({
         title: "PDF generated",
@@ -214,6 +250,10 @@ export default function InvoicesPage() {
     setSelectedInvoice(invoice)
     setIsShareDialogOpen(true)
   }
+
+  const hasNonEurInView = filteredInvoices.some(
+    (inv) => normalizeListCurrency(inv.currency) !== "EUR",
+  )
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -310,34 +350,64 @@ export default function InvoicesPage() {
             )}
           </div>
         ) : (
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Invoice #</TableHead>
+                  <TableHead className="min-w-[10rem] max-w-[16rem]">Client</TableHead>
+                  <TableHead className="whitespace-nowrap">Date created</TableHead>
+                  <TableHead className="whitespace-nowrap">Invoice date</TableHead>
+                  <TableHead className="whitespace-nowrap">Due date</TableHead>
                   <TableHead>Amount</TableHead>
+                  {hasNonEurInView ? (
+                    <TableHead className="text-right whitespace-nowrap">ECB rate</TableHead>
+                  ) : null}
+                  <TableHead className="text-right whitespace-nowrap">EUR</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.map((invoice) => (
+                {filteredInvoices.map((invoice) => {
+                  const eurRow = listDocumentEurRow(invoice, "invoice", eurRatesByDocDate)
+                  return (
                   <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div>{invoice.clientDetails.name}</div>
-                        {invoice.clientDetails.email && (
-                          <div className="text-xs text-muted-foreground">{invoice.clientDetails.email}</div>
-                        )}
-                      </div>
+                    <TableCell className="whitespace-nowrap font-medium tabular-nums align-top">
+                      {invoice.invoiceNumber}
                     </TableCell>
-                    <TableCell>{format(new Date(invoice.invoiceDate), "MMM d, yyyy")}</TableCell>
-                    <TableCell>{format(new Date(invoice.dueDate), "MMM d, yyyy")}</TableCell>
+                    <TableCell className="min-w-0 max-w-[16rem] align-top">
+                      <div
+                        className="truncate font-medium"
+                        title={invoice.clientDetails.name}
+                      >
+                        {invoice.clientDetails.name}
+                      </div>
+                      {invoice.clientDetails.email && (
+                        <div
+                          className="truncate text-xs text-muted-foreground"
+                          title={invoice.clientDetails.email}
+                        >
+                          {invoice.clientDetails.email}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatDocumentListDate(invoice.createdAt)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatDocumentListDate(invoice.invoiceDate)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatDocumentListDate(invoice.dueDate)}
+                    </TableCell>
                     <TableCell>{formatCurrency(invoice.total, invoice)}</TableCell>
+                    {hasNonEurInView ? (
+                      <TableCell className="text-right text-muted-foreground text-sm tabular-nums">
+                        {eurRow.rateLabel}
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="text-right tabular-nums">{formatListEurAmount(eurRow.eur)}</TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -416,7 +486,8 @@ export default function InvoicesPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

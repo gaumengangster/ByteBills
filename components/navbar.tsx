@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { FileText, Receipt, TruckIcon, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react'
+import { FileText, Receipt, TruckIcon, BarChart3, Menu, X, LogOut } from 'lucide-react'
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import {
@@ -24,7 +24,6 @@ const navItems = [
   { name: "Receipts", href: "/receipts", icon: <Receipt className="h-4 w-4" /> },
   { name: "Delivery Notes", href: "/delivery-notes", icon: <TruckIcon className="h-4 w-4" /> },
   { name: "Reports", href: "/reports", icon: <BarChart3 className="h-4 w-4" /> },
-  { name: "Settings", href: "/settings", icon: <Settings className="h-4 w-4" /> },
 ]
 
 export function Navbar() {
@@ -161,6 +160,13 @@ export function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Profile
+                </Link>
+                <Link
+                  href="/settings"
+                  className="block px-4 py-2 text-base font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Settings
                 </Link>
                 <button
                   onClick={() => {

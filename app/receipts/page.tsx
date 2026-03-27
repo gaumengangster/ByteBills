@@ -33,7 +33,16 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { Download, Edit, Eye, Receipt, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
 import { downloadReceiptPDF, generateReceiptPDF } from "@/lib/receipt-pdf-service"
-import {formatCurrency} from "@/lib/utils"
+import { buildDocumentFilename } from "@/lib/document-filename"
+import { formatCurrency } from "@/lib/utils"
+import { fetchEurRatesForDocumentDates, type EurRatesByDocumentDate } from "@/lib/eur-rates"
+import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
+import {
+  formatDocumentListDate,
+  formatListEurAmount,
+  listDocumentEurRow,
+  normalizeListCurrency,
+} from "@/lib/document-list-eur"
 
 export default function ReceiptsPage() {
   const { user, loading } = useAuth()
@@ -46,6 +55,7 @@ export default function ReceiptsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [receiptToDelete, setReceiptToDelete] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
+  const [eurRatesByDocDate, setEurRatesByDocDate] = useState<EurRatesByDocumentDate | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -79,6 +89,32 @@ export default function ReceiptsPage() {
       fetchReceipts()
     }
   }, [user])
+
+  useEffect(() => {
+    if (!receipts.length) {
+      setEurRatesByDocDate({})
+      return
+    }
+    const keys = new Set<string>()
+    for (const rec of receipts) {
+      const d = getRevenueDocumentDate({
+        type: "receipts",
+        invoiceDate: undefined,
+        receiptDate: rec.receiptDate,
+      })
+      if (!Number.isNaN(d.getTime())) {
+        keys.add(format(d, "yyyy-MM-dd"))
+      }
+    }
+    let cancelled = false
+    ;(async () => {
+      const r = await fetchEurRatesForDocumentDates([...keys])
+      if (!cancelled) setEurRatesByDocDate(r)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [receipts])
 
   useEffect(() => {
     // Apply filters
@@ -141,7 +177,7 @@ export default function ReceiptsPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateReceiptPDF(receipt)
-      downloadReceiptPDF(pdfBlob, `Receipt-${receipt.receiptNumber}.pdf`)
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(receipt))
 
       toast({
         title: "PDF generated",
@@ -158,6 +194,10 @@ export default function ReceiptsPage() {
       setIsDownloading(null)
     }
   }
+
+  const hasNonEurInView = filteredReceipts.some(
+    (rec) => normalizeListCurrency(rec.currency) !== "EUR",
+  )
 
   const getPaymentMethodText = (method: string) => {
     switch (method) {
@@ -257,35 +297,63 @@ export default function ReceiptsPage() {
             )}
           </div>
         ) : (
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Receipt #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Receipt #</TableHead>
+                  <TableHead className="min-w-[10rem] max-w-[16rem]">Client</TableHead>
+                  <TableHead className="whitespace-nowrap">Date created</TableHead>
+                  <TableHead className="whitespace-nowrap">Receipt date</TableHead>
                   <TableHead>Payment Method</TableHead>
                   <TableHead>Invoice Ref</TableHead>
                   <TableHead>Amount</TableHead>
+                  {hasNonEurInView ? (
+                    <TableHead className="text-right whitespace-nowrap">ECB rate</TableHead>
+                  ) : null}
+                  <TableHead className="text-right whitespace-nowrap">EUR</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReceipts.map((receipt) => (
+                {filteredReceipts.map((receipt) => {
+                  const eurRow = listDocumentEurRow(receipt, "receipt", eurRatesByDocDate)
+                  return (
                   <TableRow key={receipt.id}>
-                    <TableCell className="font-medium">{receipt.receiptNumber}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div>{receipt.clientDetails.name}</div>
-                        {receipt.clientDetails.email && (
-                          <div className="text-xs text-muted-foreground">{receipt.clientDetails.email}</div>
-                        )}
-                      </div>
+                    <TableCell className="whitespace-nowrap font-medium tabular-nums align-top">
+                      {receipt.receiptNumber}
                     </TableCell>
-                    <TableCell>{format(new Date(receipt.receiptDate), "MMM d, yyyy")}</TableCell>
+                    <TableCell className="min-w-0 max-w-[16rem] align-top">
+                      <div
+                        className="truncate font-medium"
+                        title={receipt.clientDetails.name}
+                      >
+                        {receipt.clientDetails.name}
+                      </div>
+                      {receipt.clientDetails.email && (
+                        <div
+                          className="truncate text-xs text-muted-foreground"
+                          title={receipt.clientDetails.email}
+                        >
+                          {receipt.clientDetails.email}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatDocumentListDate(receipt.createdAt)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatDocumentListDate(receipt.receiptDate)}
+                    </TableCell>
                     <TableCell>{getPaymentMethodText(receipt.paymentMethod)}</TableCell>
                     <TableCell>{receipt.invoiceReference || "-"}</TableCell>
                     <TableCell>{formatCurrency(receipt.total, receipt)}</TableCell>
+                    {hasNonEurInView ? (
+                      <TableCell className="text-right text-muted-foreground text-sm tabular-nums">
+                        {eurRow.rateLabel}
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="text-right tabular-nums">{formatListEurAmount(eurRow.eur)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -329,7 +397,8 @@ export default function ReceiptsPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

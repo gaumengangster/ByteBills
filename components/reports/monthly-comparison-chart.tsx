@@ -1,30 +1,60 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  ResponsiveContainer,
-  Legend,
-  TooltipProps,
-  Line,
-  ComposedChart
-} from "recharts"
+import { useState, useEffect, useMemo } from "react"
+import { Bar, XAxis, YAxis, CartesianGrid, Legend, TooltipProps, Line, ComposedChart } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
-import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { getDocumentChartDate, getRevenueDocumentDate } from "@/lib/revenue-document-date"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import {
+  buildRevenueYTicks,
+  formatCurrencyAxisCompact,
+  formatRevenueFull,
+} from "@/lib/format-chart-axis"
+import {
+  convertAmountToEur,
+  mergeEcbLiveRates,
+  type EurRatesByDocumentDate,
+  type EurReferenceRates,
+} from "@/lib/eur-rates"
+
+const DISPLAY_CURRENCY = "EUR"
 
 type MonthlyComparisonChartProps = {
   documents: any[]
   timeframe: string
   startDate: Date
   endDate: Date
+  eurRatesByDocDate?: EurRatesByDocumentDate
 }
 
-export function MonthlyComparisonChart({ documents, timeframe, startDate, endDate }: MonthlyComparisonChartProps) {
+export function MonthlyComparisonChart({
+  documents,
+  timeframe,
+  startDate,
+  endDate,
+  eurRatesByDocDate,
+}: MonthlyComparisonChartProps) {
   const [chartData, setChartData] = useState<any[]>([])
+
+  const revenueDocumentsForCurrency = useMemo(() => {
+    return documents.filter((doc) => {
+      if ((doc.type !== "invoices" && doc.type !== "receipts") || !doc.total) {
+        return false
+      }
+      const d = getRevenueDocumentDate(doc)
+      return !Number.isNaN(d.getTime())
+    })
+  }, [documents])
+
+  const ratesForDoc = (doc: (typeof documents)[0]): EurReferenceRates => {
+    const d = getRevenueDocumentDate(doc)
+    if (Number.isNaN(d.getTime())) {
+      return mergeEcbLiveRates({})
+    }
+    const key = format(d, "yyyy-MM-dd")
+    return eurRatesByDocDate?.[key] ?? mergeEcbLiveRates({})
+  }
 
   useEffect(() => {
     if (!documents.length) {
@@ -32,10 +62,7 @@ export function MonthlyComparisonChart({ documents, timeframe, startDate, endDat
       return
     }
 
-    // Filter only revenue-generating documents (invoices and receipts)
-    const revenueDocuments = documents.filter(doc => 
-      (doc.type === "invoices" || doc.type === "receipts") && doc.total
-    )
+    const revenueDocuments = revenueDocumentsForCurrency
 
     // Monthly data
     const months = eachMonthOfInterval({ start: startDate, end: endDate })
@@ -44,18 +71,21 @@ export function MonthlyComparisonChart({ documents, timeframe, startDate, endDat
       const monthStart = startOfMonth(month)
       const monthEnd = endOfMonth(month)
       
-      const monthDocs = documents.filter(doc => {
-        const docDate = parseISO(doc.createdAt)
-        return docDate >= monthStart && docDate <= monthEnd
+      const monthDocs = documents.filter((doc) => {
+        const docDate = getDocumentChartDate(doc)
+        return !Number.isNaN(docDate.getTime()) && docDate >= monthStart && docDate <= monthEnd
       })
       
-      const monthRevenueDocs = revenueDocuments.filter(doc => {
-        const docDate = parseISO(doc.createdAt)
-        return docDate >= monthStart && docDate <= monthEnd
+      const monthRevenueDocs = revenueDocuments.filter((doc) => {
+        const docDate = getRevenueDocumentDate(doc)
+        return !Number.isNaN(docDate.getTime()) && docDate >= monthStart && docDate <= monthEnd
       })
       
       const documentCount = monthDocs.length
-      const revenue = monthRevenueDocs.reduce((sum, doc) => sum + doc.total, 0)
+      const revenue = monthRevenueDocs.reduce(
+        (sum, doc) => sum + convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc)),
+        0,
+      )
       
       return {
         date: month,
@@ -66,16 +96,11 @@ export function MonthlyComparisonChart({ documents, timeframe, startDate, endDat
     })
 
     setChartData(data)
-  }, [documents, timeframe, startDate, endDate])
+  }, [documents, timeframe, startDate, endDate, revenueDocumentsForCurrency, eurRatesByDocDate])
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
+  const maxRevenue = chartData.length ? Math.max(0, ...chartData.map((d) => d.revenue ?? 0)) : 0
+  const revenueYTicks = buildRevenueYTicks(maxRevenue)
+  const revenueYMax = revenueYTicks[revenueYTicks.length - 1] ?? 1
 
   if (chartData.length === 0) {
     return (
@@ -86,58 +111,62 @@ export function MonthlyComparisonChart({ documents, timeframe, startDate, endDat
   }
 
   return (
-    <ChartContainer
-      config={{
-        revenue: {
-          label: "Revenue",
-          color: "hsl(var(--chart-1))",
-        },
-        documentCount: {
-          label: "Documents",
-          color: "hsl(var(--chart-2))",
-        },
-      }}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+    <div className="h-full min-h-[300px] w-full min-w-0 max-w-full overflow-hidden">
+      <ChartContainer
+        className="aspect-auto h-full w-full min-h-0 min-w-0 max-w-full [&_.recharts-responsive-container]:!max-w-full"
+        config={{
+          revenue: {
+            label: "Revenue",
+            color: "hsl(var(--chart-1))",
+          },
+          documentCount: {
+            label: "Documents",
+            color: "hsl(var(--chart-2))",
+          },
+        }}
+      >
+        <ComposedChart data={chartData} margin={{ top: 20, right: 24, left: 4, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="formattedDate" />
-          <YAxis 
-            yAxisId="left" 
-            orientation="left" 
-            tickFormatter={(value) => formatCurrency(value)}
-            width={80}
+          <XAxis dataKey="formattedDate" interval="preserveStartEnd" />
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            domain={[0, revenueYMax]}
+            ticks={revenueYTicks}
+            tickFormatter={(value) => formatCurrencyAxisCompact(value, DISPLAY_CURRENCY)}
+            width={72}
           />
-          <YAxis 
-            yAxisId="right" 
-            orientation="right" 
-            allowDecimals={false}
-          />
-          <ChartTooltip content={<CustomTooltip />} />
-          <Bar 
-            yAxisId="right" 
-            dataKey="documentCount" 
-            fill="var(--color-documentCount)" 
-            name="Documents" 
+          <YAxis yAxisId="right" orientation="right" allowDecimals={false} width={40} />
+          <ChartTooltip content={(props) => <CustomTooltip {...props} currency={DISPLAY_CURRENCY} />} />
+          <Bar
+            yAxisId="right"
+            dataKey="documentCount"
+            fill="var(--color-documentCount)"
+            name="Documents"
             barSize={30}
           />
-          <Line 
-            yAxisId="left" 
-            type="monotone" 
-            dataKey="revenue" 
-            stroke="var(--color-revenue)" 
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="revenue"
+            stroke="var(--color-revenue)"
             name="Revenue"
             strokeWidth={2}
             dot={{ r: 4 }}
           />
           <Legend />
         </ComposedChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+      </ChartContainer>
+    </div>
   )
 }
 
-function CustomTooltip({ active, payload, label }: TooltipProps<any, any>) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  currency,
+}: TooltipProps<any, any> & { currency: string }) {
   if (active && payload && payload.length) {
     return (
       <Card className="border shadow-sm">
@@ -154,10 +183,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<any, any>) {
               </div>
               <span className="font-medium ml-2">
                 {entry.name === "Revenue" 
-                  ? new Intl.NumberFormat("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                    }).format(entry.value)
+                  ? formatRevenueFull(Number(entry.value), currency)
                   : entry.value}
               </span>
             </div>

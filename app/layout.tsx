@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/lib/auth-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { Analytics } from "@vercel/analytics/next"
+import { AppFooter } from "@/components/app-footer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,9 +25,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {children}
+            <div className="flex min-h-screen flex-col">
+              <div className="flex-1">{children}</div>
+              <AppFooter />
+            </div>
             <Toaster />
-            <Analytics/>
+            <Analytics />
           </ThemeProvider>
         </AuthProvider>
       </body>

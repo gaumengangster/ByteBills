@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2, Badge } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import { use } from "react"
 import {
   AlertDialog,
@@ -96,7 +97,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
 
     try {
       const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, `DeliveryNote-${deliveryNote.deliveryNoteNumber}.pdf`)
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote))
 
       toast({
         title: "PDF generated",

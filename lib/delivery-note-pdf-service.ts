@@ -2,6 +2,7 @@ import jsPDF from "jspdf"
 import { format } from "date-fns"
 import { de as dateFnsDe } from "date-fns/locale"
 import { getTranslations } from "./translations"
+import { registerFonts } from "./pdf-fonts"
 
 export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> {
   const lang = deliveryNote.language || "en"
@@ -9,6 +10,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
+  await registerFonts(pdf)
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
@@ -21,12 +23,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   pdf.setFontSize(20)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.deliveryNote, margin, y)
   y += 10
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(`${t.deliveryNoteNumber}: ${deliveryNote.deliveryNoteNumber}`, margin, y)
   y += 5
   pdf.text(`${t.date}: ${format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
@@ -47,14 +49,14 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   // Company details on the right
   const companyY = margin
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
 
   // Right-align all company details with proper positioning
   const rightMargin = pageWidth - margin
   pdf.text(deliveryNote.companyDetails.name, rightMargin, companyY, { align: "right" })
 
   pdf.setFontSize(9)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   let companyDetailY = companyY + 5
 
   if (deliveryNote.companyDetails.address) {
@@ -78,12 +80,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   }
 
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.deliverTo, margin, y)
   y += 7
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(deliveryNote.clientDetails.name, margin, y)
   y += 5
 
@@ -113,12 +115,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   if (deliveryNote.deliveryAddress && deliveryNote.deliveryAddress !== deliveryNote.clientDetails.address) {
     y += 5
     pdf.setFontSize(12)
-    pdf.setFont("helvetica", "bold")
+    pdf.setFont("Roboto", "bold")
     pdf.text(t.deliveryAddress, margin, y)
     y += 7
 
     pdf.setFontSize(10)
-    pdf.setFont("helvetica", "normal")
+    pdf.setFont("Roboto", "normal")
     pdf.text(deliveryNote.deliveryAddress, margin, y)
     y += 5
   }
@@ -139,7 +141,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft, y, tableWidth, 8, "F")
 
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.description, tableLeft + 2, y + 5)
   pdf.text(t.quantity, tableLeft + colWidths.description + 2, y + 5)
   pdf.text(t.notes.replace(":", ""), tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
@@ -147,7 +149,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   y += 8
 
   // Table rows
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   deliveryNote.items.forEach((item: any, index: number) => {
     const rowHeight = 8
 
@@ -182,11 +184,11 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
       y = margin
     }
 
-    pdf.setFont("helvetica", "bold")
+    pdf.setFont("Roboto", "bold")
     pdf.text(t.deliveryInstructions, margin, y)
     y += 7
 
-    pdf.setFont("helvetica", "normal")
+    pdf.setFont("Roboto", "normal")
     y = addWrappedText(deliveryNote.deliveryInstructions, margin, y, tableWidth, 5)
     y += 10
   }
@@ -197,11 +199,11 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
       y = margin
     }
 
-    pdf.setFont("helvetica", "bold")
+    pdf.setFont("Roboto", "bold")
     pdf.text(t.notes, margin, y)
     y += 7
 
-    pdf.setFont("helvetica", "normal")
+    pdf.setFont("Roboto", "normal")
     y = addWrappedText(deliveryNote.notes, margin, y, tableWidth, 5)
     y += 10
   }
@@ -212,12 +214,12 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
     y = margin
   }
 
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.deliveredBy, margin, y)
   pdf.text(t.receivedBy, pageWidth / 2 + 10, y)
   y += 7
 
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(`${t.name}: ____________________`, margin, y)
   pdf.text(`${t.name}: ____________________`, pageWidth / 2 + 10, y)
   y += 10
@@ -230,11 +232,11 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   pdf.text(`${t.date}: ____________________`, pageWidth / 2 + 10, y)
   y += 15
 
-  pdf.setFont("helvetica", "italic")
+  pdf.setFont("Roboto", "normal")
   pdf.setFontSize(9)
   pdf.text(t.thankYou, pageWidth / 2, pageHeight - margin, { align: "center" })
 
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.setFontSize(8)
   pdf.text("Generated by ByteBills", pageWidth - margin, pageHeight - margin, { align: "right" })
 

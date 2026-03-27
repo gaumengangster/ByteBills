@@ -7,6 +7,7 @@ import { format } from "date-fns"
 import { Badge, Download, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import { toast } from "@/components/ui/use-toast"
 
 type ReceiptPreviewProps = {
@@ -90,7 +91,7 @@ export function ReceiptPreview({
       }
 
       const pdfBlob = await generateReceiptPDF(pdfData)
-      downloadReceiptPDF(pdfBlob, `Receipt-${receiptData.receiptNumber}.pdf`)
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(pdfData))
 
       toast({ title: "PDF generated", description: "Your receipt PDF has been downloaded." })
     } catch (error) {

@@ -2,6 +2,8 @@ import jsPDF from "jspdf"
 import { format } from "date-fns"
 import { de as dateFnsDe } from "date-fns/locale"
 import { getTranslations, getPaymentMethodTranslated } from "./translations"
+import { registerFonts } from "./pdf-fonts"
+import { shouldShowReverseChargeNotice } from "./reverse-charge"
 
 export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   const lang = receipt.language || "en"
@@ -9,6 +11,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
+  await registerFonts(pdf)
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
@@ -23,12 +26,12 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   }
 
   pdf.setFontSize(20)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.receipt, margin, y)
   y += 10
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(`${t.receiptNumber}: ${receipt.receiptNumber}`, margin, y)
   y += 5
   pdf.text(`${t.date}: ${format(new Date(receipt.receiptDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
@@ -45,13 +48,13 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   // Company details on the right (same style as invoice)
   const companyY = margin
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
 
   const rightMargin = pageWidth - margin
   pdf.text(receipt.companyDetails.name, rightMargin, companyY, { align: "right" })
 
   pdf.setFontSize(9)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   let companyDetailY = companyY + 5
 
   if (receipt.companyDetails.address) {
@@ -75,12 +78,12 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   }
 
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.receivedFrom, margin, y)
   y += 7
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(receipt.clientDetails.name, margin, y)
   y += 5
 
@@ -130,7 +133,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft, y, tableWidth, 8, "F")
 
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.description, tableLeft + 2, y + 5)
   pdf.text(t.quantity, tableLeft + colWidths.description + 2, y + 5)
   pdf.text(t.unitPrice, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
@@ -138,7 +141,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
 
   y += 8
 
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   receipt.items.forEach((item: any, index: number) => {
     const rowHeight = 8
 
@@ -185,7 +188,9 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   )
   y += 8
 
-  const reverseCharge = true
+  const reverseCharge = shouldShowReverseChargeNotice({
+    clientDetails: receipt.clientDetails,
+  })
   if (reverseCharge) {
     pdf.setFontSize(8)
     pdf.text(t.reverseCharge, tableLeft + 2, y + 5)
@@ -208,7 +213,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
     8,
     "F",
   )
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.total, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
     formatCurrency(receipt.total, currency),
@@ -224,20 +229,20 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
       y = margin
     }
 
-    pdf.setFont("helvetica", "bold")
+    pdf.setFont("Roboto", "bold")
     pdf.text(t.notes, margin, y)
     y += 7
 
-    pdf.setFont("helvetica", "normal")
+    pdf.setFont("Roboto", "normal")
     y = addWrappedText(receipt.notes, margin, y, tableWidth, 5)
     y += 10
   }
   const hasBankDetails = receipt.companyDetails.bankName || receipt.companyDetails.iban
   if (hasBankDetails) {
     pdf.setFontSize(10)
-    pdf.setFont("helvetica", "bold")
+    pdf.setFont("Roboto", "bold")
     pdf.text(t.paymentTerms, margin, y)
-    pdf.setFont("helvetica", "normal")
+    pdf.setFont("Roboto", "normal")
     y += 6
 
     const paymentDetails = [
@@ -249,10 +254,10 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
 
     pdf.setFontSize(9)
     paymentDetails.forEach(({ label, value }) => {
-      pdf.setFont("helvetica", "bold")
+      pdf.setFont("Roboto", "bold")
       pdf.text(label, margin, y)
 
-      pdf.setFont("helvetica", "normal")
+      pdf.setFont("Roboto", "normal")
       pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)
 
       y += 6
@@ -263,7 +268,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   }
 
 
-  pdf.setFont("helvetica", "italic")
+  pdf.setFont("Roboto", "normal")
   pdf.setFontSize(9)
   pdf.text(t.thankYou, pageWidth / 2, pageHeight - margin, { align: "center" })
 

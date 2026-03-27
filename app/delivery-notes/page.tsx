@@ -33,6 +33,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { Download, Edit, Eye, FileText, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 
 export default function DeliveryNotesPage() {
   const { user, loading } = useAuth()
@@ -149,7 +150,7 @@ export default function DeliveryNotesPage() {
     try {
       // Generate PDF directly
       const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, `DeliveryNote-${deliveryNote.deliveryNoteNumber}.pdf`)
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote))
 
       toast({
         title: "PDF generated",

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { Badge, Download, X } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 
@@ -82,7 +83,7 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
       }
 
       const pdfBlob = await generateInvoicePDF(pdfData)
-      downloadPDF(pdfBlob, `Invoice-${invoiceData.invoiceNumber}.pdf`)
+      downloadPDF(pdfBlob, buildDocumentFilename(pdfData))
 
       toast({ title: "PDF generated", description: "Your invoice PDF has been downloaded." })
     } catch (error) {

@@ -16,7 +16,8 @@ import {
   Legend
 } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
-import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
+import { getDocumentChartDate } from "@/lib/revenue-document-date"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 
 type DocumentsChartProps = {
@@ -41,12 +42,21 @@ export function DocumentsChart({
   proformaInvoicesCount
 }: DocumentsChartProps) {
   type ChartItem = {
-    name: string;
-    value: number;
-    color: string;
+    name: string
+    value: number
+    color: string
   }
 
-  const [chartData, setChartData] = useState<ChartItem[]>([])
+  type BarChartRow = {
+    date: Date
+    invoices: number
+    receipts: number
+    deliveryNotes: number
+    proformaInvoices: number
+    formattedDate: string
+  }
+
+  const [chartData, setChartData] = useState<ChartItem[] | BarChartRow[]>([])
 
   useEffect(() => {
     // If we have counts, create a pie chart data
@@ -74,9 +84,9 @@ export function DocumentsChart({
       const monthStart = startOfMonth(month)
       const monthEnd = endOfMonth(month)
       
-      const monthDocs = documents.filter(doc => {
-        const docDate = parseISO(doc.createdAt)
-        return docDate >= monthStart && docDate <= monthEnd
+      const monthDocs = documents.filter((doc) => {
+        const docDate = getDocumentChartDate(doc)
+        return !Number.isNaN(docDate.getTime()) && docDate >= monthStart && docDate <= monthEnd
       })
       
       const invoices = monthDocs.filter(doc => doc.type === "invoices").length
@@ -94,7 +104,7 @@ export function DocumentsChart({
       }
     })
 
-    setChartData(chartData)
+    setChartData(data)
   }, [documents, timeframe, startDate, endDate, invoicesCount, receiptsCount, deliveryNotesCount, proformaInvoicesCount])
 
   // If we have counts, render a pie chart
@@ -112,7 +122,7 @@ export function DocumentsChart({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={chartData}
+              data={chartData as ChartItem[]}
               cx="50%"
               cy="50%"
               innerRadius={60}
@@ -122,7 +132,7 @@ export function DocumentsChart({
               label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               labelLine={false}
             >
-              {chartData.map((entry, index) => (
+              {(chartData as ChartItem[]).map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
@@ -146,31 +156,32 @@ export function DocumentsChart({
   }
 
   return (
-    <ChartContainer
-      config={{
-        invoices: {
-          label: "Invoices",
-          color: "#3b82f6",
-        },
-        receipts: {
-          label: "Receipts",
-          color: "#22c55e",
-        },
-        deliveryNotes: {
-          label: "Delivery Notes",
-          color: "#f59e0b",
-        },
-        proformaInvoices: {
-          label: "Proforma",
-          color: "#a855f7",
-        },
-      }}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+    <div className="h-full min-h-[300px] w-full min-w-0 max-w-full overflow-hidden">
+      <ChartContainer
+        className="aspect-auto h-full w-full min-h-0 min-w-0 max-w-full [&_.recharts-responsive-container]:!max-w-full"
+        config={{
+          invoices: {
+            label: "Invoices",
+            color: "#3b82f6",
+          },
+          receipts: {
+            label: "Receipts",
+            color: "#22c55e",
+          },
+          deliveryNotes: {
+            label: "Delivery Notes",
+            color: "#f59e0b",
+          },
+          proformaInvoices: {
+            label: "Proforma",
+            color: "#a855f7",
+          },
+        }}
+      >
+        <BarChart data={chartData as BarChartRow[]} margin={{ top: 20, right: 24, left: 4, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="formattedDate" />
-          <YAxis allowDecimals={false} />
+          <XAxis dataKey="formattedDate" interval="preserveStartEnd" />
+          <YAxis allowDecimals={false} width={40} />
           <ChartTooltip content={<CustomTooltip />} />
           <Bar dataKey="invoices" stackId="a" fill="#3b82f6" name="Invoices" />
           <Bar dataKey="receipts" stackId="a" fill="#22c55e" name="Receipts" />
@@ -178,8 +189,8 @@ export function DocumentsChart({
           <Bar dataKey="proformaInvoices" stackId="a" fill="#a855f7" name="Proforma" />
           <Legend />
         </BarChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+      </ChartContainer>
+    </div>
   )
 }
 

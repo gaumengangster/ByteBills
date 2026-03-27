@@ -16,6 +16,7 @@ import { doc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { ArrowLeft, Download, Edit, MoreHorizontal, Send, Share2, Trash2, Loader2 } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import { EmailInvoiceDialog } from "./email-invoice-dialog"
 import { ShareInvoiceDialog } from "./share-invoice-dialog"
 import {
@@ -47,7 +48,7 @@ export function InvoiceActions({ invoice, userId, onStatusChange }: InvoiceActio
 
     try {
       const pdfBlob = await generateInvoicePDF(invoice)
-      downloadPDF(pdfBlob, `Invoice-${invoice.invoiceNumber}.pdf`)
+      downloadPDF(pdfBlob, buildDocumentFilename(invoice))
 
       toast({
         title: "PDF generated",

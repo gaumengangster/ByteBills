@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase"
 import { format } from "date-fns"
 import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import { use } from "react";
 import {
   AlertDialog,
@@ -96,7 +97,7 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
 
     try {
       const pdfBlob = await generateReceiptPDF(receipt)
-      downloadReceiptPDF(pdfBlob, `Receipt-${receipt.receiptNumber}.pdf`)
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(receipt))
 
       toast({
         title: "PDF generated",

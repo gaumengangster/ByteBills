@@ -33,6 +33,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { Download, Edit, Eye, Receipt, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 
 export default function ReceiptsPage() {
   const { user, loading } = useAuth()
@@ -140,7 +141,7 @@ export default function ReceiptsPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateReceiptPDF(receipt)
-      downloadReceiptPDF(pdfBlob, `Receipt-${receipt.receiptNumber}.pdf`)
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(receipt))
 
       toast({
         title: "PDF generated",

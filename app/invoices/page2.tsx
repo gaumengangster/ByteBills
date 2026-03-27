@@ -48,6 +48,7 @@ import {
 import { EmailInvoiceDialog } from "@/components/invoices/email-invoice-dialog"
 import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
+import { buildDocumentFilename } from "@/lib/document-filename"
 import {formatCurrency} from "@/lib/utils"
 
 export default function InvoicesPage() {
@@ -187,7 +188,7 @@ export default function InvoicesPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateInvoicePDF(invoice)
-      downloadPDF(pdfBlob, `Invoice-${invoice.invoiceNumber}.pdf`)
+      downloadPDF(pdfBlob, buildDocumentFilename(invoice))
 
       toast({
         title: "PDF generated",

@@ -2,6 +2,8 @@ import jsPDF from "jspdf"
 import { format } from "date-fns"
 import { de as dateFnsDe } from "date-fns/locale"
 import { getTranslations } from "./translations"
+import { registerFonts } from "./pdf-fonts"
+import { shouldShowReverseChargeNotice } from "./reverse-charge"
 
 export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   const lang = invoice.language || "en"
@@ -9,6 +11,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
+  await registerFonts(pdf)
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
@@ -21,12 +24,12 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   }
 
   pdf.setFontSize(20)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.invoice, margin, y)
   y += 10
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(`${t.invoiceNumber}: ${invoice.invoiceNumber}`, margin, y)
   y += 5
   pdf.text(`${t.date}: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
@@ -39,14 +42,14 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   // Company details on the right
   const companyY = margin
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
 
   // Right-align all company details with proper positioning
   const rightMargin = pageWidth - margin
   pdf.text(invoice.companyDetails.name, rightMargin, companyY, { align: "right" })
 
   pdf.setFontSize(9)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   let companyDetailY = companyY + 5
 
   if (invoice.companyDetails.address) {
@@ -71,12 +74,12 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   }
 
   pdf.setFontSize(12)
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.billTo, margin, y)
   y += 7
 
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   pdf.text(invoice.clientDetails.name, margin, y)
   y += 5
 
@@ -128,7 +131,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.setFillColor(240, 240, 240)
   pdf.rect(tableLeft, y, tableWidth, 8, "F")
 
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.description, tableLeft + 2, y + 5)
   pdf.text(t.quantity, tableLeft + colWidths.description + 2, y + 5)
   pdf.text(t.unitPrice, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
@@ -137,7 +140,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   y += 8
 
   // Table rows
-  pdf.setFont("helvetica", "normal")
+  pdf.setFont("Roboto", "normal")
   invoice.items.forEach((item: any, index: number) => {
     const rowHeight = 8
 
@@ -175,8 +178,10 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   )
   y += 8
 
-  const reverseCharge = true
-  if(reverseCharge){
+  const reverseCharge = shouldShowReverseChargeNotice({
+    clientDetails: invoice.clientDetails,
+  })
+  if (reverseCharge) {
     pdf.setFontSize(8)
     pdf.text(t.reverseCharge, tableLeft + 2, y + 5)
     pdf.setFontSize(10)
@@ -192,7 +197,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
    pdf.setFillColor(230, 230, 230)
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F") 
-  pdf.setFont("helvetica", "bold")
+  pdf.setFont("Roboto", "bold")
   pdf.text(t.total, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
     formatCurrency(invoice.total, invoice.currency),
@@ -209,21 +214,21 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
 
     if (invoice.notes) {
-      pdf.setFont("helvetica", "bold")
+      pdf.setFont("Roboto", "bold")
       pdf.text(t.notes, margin, y)
       y += 7
 
-      pdf.setFont("helvetica", "normal")
+      pdf.setFont("Roboto", "normal")
       y = addWrappedText(invoice.notes, margin, y, tableWidth, 5)
       y += 10
     }
 
     if (invoice.terms) {
-      pdf.setFont("helvetica", "bold")
+      pdf.setFont("Roboto", "bold")
       pdf.text(t.termsAndConditions, margin, y)
       y += 7
 
-      pdf.setFont("helvetica", "normal")
+      pdf.setFont("Roboto", "normal")
       y = addWrappedText(invoice.terms, margin, y, tableWidth, 5)
       y += 10
     }
@@ -231,9 +236,9 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 const hasBankDetails = invoice.companyDetails.bankName || invoice.companyDetails.iban
 if (hasBankDetails) {
   pdf.setFontSize(10)
-  pdf.setFont("helvetica", 'bold')
+  pdf.setFont("Roboto", 'bold')
   pdf.text(t.paymentTerms, margin, y)
-  pdf.setFont("helvetica", 'normal')
+  pdf.setFont("Roboto", 'normal')
   y += 6
   
   const paymentDetails = [
@@ -245,10 +250,10 @@ if (hasBankDetails) {
   
   pdf.setFontSize(9)
   paymentDetails.forEach(({ label, value }) => {
-    pdf.setFont("helvetica", 'bold')
+    pdf.setFont("Roboto", 'bold')
     pdf.text(label, margin, y)
     
-    pdf.setFont("helvetica", 'normal')
+    pdf.setFont("Roboto", 'normal')
     pdf.text(value, margin + pdf.getTextWidth(label) + 3, y)  // ← Dinamički x pozicija
     
     y += 6
@@ -261,12 +266,12 @@ if (hasBankDetails) {
 
 
 
-  pdf.setFont("helvetica", "italic")
+  pdf.setFont("Roboto", "normal")
   pdf.setFontSize(9)
   pdf.text(t.thankYou, pageWidth / 2, pageHeight - margin, { align: "center" })
 
   // Add ByteBills branding
-/*   pdf.setFont("helvetica", "normal")
+/*   pdf.setFont("Roboto", "normal")
   pdf.setFontSize(8)
   pdf.text("Generated by ByteBills", pageWidth - margin, pageHeight - margin, { align: "right" }) */
 
