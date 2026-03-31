@@ -26,20 +26,22 @@ export const FALLBACK_EUR_RATES: EurReferenceRates = {
 /** Per calendar day (yyyy-MM-dd): merged ECB rates applicable to documents dated that day. */
 export type EurRatesByDocumentDate = Record<string, EurReferenceRates>
 
-let histCache: {
+/** Parsed full ECB history (per server instance). Refetched only when missing or possibly stale — see `ensureEcbXmlForDocumentDates`. */
+let ecbParsedHist: {
   byDate: Record<string, EurReferenceRates>
   sortedKeys: string[]
-  fetchedAt: number
 } | null = null
 
-/**
- * In-memory TTL for the parsed hist file (per Node/serverless instance).
- * After this, the next `loadEcbHistRatesCached()` refetches ECB and reparses.
- * Next.js `fetch(..., { next: { revalidate: 86400 } })` also revalidates that upstream
- * request at most once per 24h per data cache rules.
- * ECB adds a new business day ~16:00 CET; daily refresh is usually enough.
- */
-const HIST_CACHE_MS = 24 * 60 * 60 * 1000
+/** Resolved rates for a document business date (yyyy-MM-dd); avoids recomputing and skips XML fetch on repeat. */
+const resolvedRatesByDocDate = new Map<string, EurReferenceRates>()
+
+/** UTC yyyy-MM-dd of last successful ECB XML fetch (caps refresh attempts when newer ECB days may exist). */
+let lastEcbXmlFetchUtcDay: string | null = null
+
+function utcTodayYmd(): string {
+  const n = new Date()
+  return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, "0")}-${String(n.getUTCDate()).padStart(2, "0")}`
+}
 
 function normalizeCurrency(c: string | undefined): string {
   if (typeof c === "string" && /^[A-Za-z]{3}$/.test(c.trim())) {
@@ -121,15 +123,8 @@ export function resolveRatesForCalendarDate(
   return ratesByEcbDate[last]
 }
 
-/** Loads and caches full ECB history (merged per day). Server-side / API use. */
-export async function loadEcbHistRatesCached(): Promise<{
-  byDate: Record<string, EurReferenceRates>
-  sortedKeys: string[]
-}> {
-  if (histCache && Date.now() - histCache.fetchedAt < HIST_CACHE_MS) {
-    return { byDate: histCache.byDate, sortedKeys: histCache.sortedKeys }
-  }
-  const res = await fetch(ECB_EUROFXREF_HIST_XML, { next: { revalidate: 86400 } })
+async function fetchAndParseEcbXml(): Promise<void> {
+  const res = await fetch(ECB_EUROFXREF_HIST_XML, { cache: "no-store" })
   if (!res.ok) {
     throw new Error(String(res.status))
   }
@@ -140,12 +135,73 @@ export async function loadEcbHistRatesCached(): Promise<{
   for (const k of sortedKeys) {
     byDate[k] = mergeEcbLiveRates(raw[k])
   }
-  histCache = { byDate, sortedKeys, fetchedAt: Date.now() }
-  return { byDate, sortedKeys }
+  ecbParsedHist = { byDate, sortedKeys }
+  lastEcbXmlFetchUtcDay = utcTodayYmd()
+  resolvedRatesByDocDate.clear()
 }
 
 /**
- * Resolves ECB rates for each requested calendar date (document business date, yyyy-MM-dd).
+ * Ensures ECB `eurofxref-hist.xml` is loaded when needed, and caches the **resolved** rate row
+ * for each requested document date. Refetches XML only when:
+ * - no parsed history yet, or
+ * - a requested date is **after** the latest ECB date in our snapshot **and** ECB may have
+ *   published newer rows (`last < today`), at most once per UTC calendar day.
+ * Repeat requests for the same document date reuse the cached resolution (no ECB fetch).
+ */
+async function ensureEcbXmlForDocumentDates(dateKeys: string[]): Promise<void> {
+  const keys = [...new Set(dateKeys)].filter(Boolean).sort()
+  if (keys.length === 0) return
+
+  const missing = keys.filter((d) => !resolvedRatesByDocDate.has(d))
+  if (missing.length === 0) return
+
+  const today = utcTodayYmd()
+  const lastEcb = ecbParsedHist?.sortedKeys[ecbParsedHist.sortedKeys.length - 1]
+  const maxMissing = missing.reduce((a, b) => (a > b ? a : b))
+
+  let needFetch =
+    !ecbParsedHist ||
+    (!!lastEcb && lastEcb < today && maxMissing > lastEcb && lastEcbXmlFetchUtcDay !== today)
+
+  if (needFetch) {
+    await fetchAndParseEcbXml()
+  }
+
+  if (!ecbParsedHist) {
+    throw new Error("ECB history unavailable")
+  }
+
+  const { sortedKeys, byDate } = ecbParsedHist
+  for (const d of missing) {
+    if (!resolvedRatesByDocDate.has(d)) {
+      const r = resolveRatesForCalendarDate(sortedKeys, byDate, d)
+      resolvedRatesByDocDate.set(d, r)
+    }
+  }
+}
+
+/**
+ * Resolved ECB rates for each document business date (yyyy-MM-dd). Used by `/api/eur-rates/by-dates`
+ * and server-side saves.
+ */
+export async function resolveEcbRatesForDocumentDates(
+  calendarDateKeys: string[],
+): Promise<EurRatesByDocumentDate> {
+  const unique = [...new Set(calendarDateKeys)].filter(Boolean).sort()
+  if (unique.length === 0) {
+    return {}
+  }
+  await ensureEcbXmlForDocumentDates(unique)
+  const out: EurRatesByDocumentDate = {}
+  for (const d of unique) {
+    out[d] = resolvedRatesByDocDate.get(d) ?? mergeEcbLiveRates({})
+  }
+  return out
+}
+
+/**
+ * Resolves ECB rates per document business date (`yyyy-MM-dd`) for saving invoices, receipts,
+ * and cost bills. Browser calls `/api/eur-rates/by-dates`, which uses the same per-date cache.
  */
 export async function fetchEurRatesForDocumentDates(
   calendarDateKeys: string[],
@@ -161,6 +217,7 @@ export async function fetchEurRatesForDocumentDates(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dates: unique }),
+        cache: "no-store",
       })
       if (!res.ok) {
         throw new Error(String(res.status))
@@ -169,12 +226,7 @@ export async function fetchEurRatesForDocumentDates(
       return data.rates ?? {}
     }
 
-    const { byDate, sortedKeys } = await loadEcbHistRatesCached()
-    const out: EurRatesByDocumentDate = {}
-    for (const d of unique) {
-      out[d] = resolveRatesForCalendarDate(sortedKeys, byDate, d)
-    }
-    return out
+    return resolveEcbRatesForDocumentDates(unique)
   } catch (e) {
     console.warn("ECB historical rates unavailable, using fallback per document", e)
     const fb = mergeEcbLiveRates({})

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { Badge, Download, X } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
@@ -53,7 +53,7 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
       }
 
       const pdfBlob = await generateDeliveryNotePDF(pdfData)
-      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(pdfData))
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(pdfData, "deliveryNote"))
     } catch (error) {
       console.error("Error generating PDF:", error)
     } finally {
@@ -77,7 +77,7 @@ export function DeliveryNotePreview({ isOpen, onClose, deliveryNoteData, compani
                   <div>Delivery Note # {deliveryNoteData.deliveryNoteNumber}</div>
                   <div>
                     Date:{" "}
-                    {deliveryNoteData.deliveryDate ? format(new Date(deliveryNoteData.deliveryDate), "PP") : "N/A"}
+                    {deliveryNoteData.deliveryDate ? formatDocumentDateBerlin(deliveryNoteData.deliveryDate, "PP") : "N/A"}
                   </div>
                   {deliveryNoteData.invoiceReference && <div>Invoice Ref: {deliveryNoteData.invoiceReference}</div>}
                   {deliveryNoteData.orderReference && <div>Order Ref: {deliveryNoteData.orderReference}</div>}

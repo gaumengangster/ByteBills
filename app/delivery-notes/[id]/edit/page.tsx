@@ -17,12 +17,16 @@ import * as z from "zod"
 import { CalendarIcon, Check, Eye, Loader2 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
 import { ClientDetails } from "@/components/invoices/client-details"
 import { DeliveryNoteItems } from "@/components/delivery-notes/delivery-note-items"
 import { DeliveryNotePreview } from "@/components/delivery-notes/delivery-note-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import {
+  formatDocumentDateBerlin,
+  parseStoredDocumentDate,
+  persistDocumentDateYmd,
+} from "@/lib/document-date-berlin"
 import { use } from "react"
 
 // Create a schema for delivery note validation
@@ -189,7 +193,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
           clientRegistrationNumber: deliveryNoteData.clientDetails.registrationNumber || "",
           clientVatNumber: deliveryNoteData.clientDetails.vatNumber || "",
           deliveryNoteNumber: deliveryNoteData.deliveryNoteNumber,
-          deliveryDate: new Date(deliveryNoteData.deliveryDate),
+          deliveryDate: parseStoredDocumentDate(deliveryNoteData.deliveryDate),
           deliveryAddress: deliveryNoteData.deliveryAddress || "",
           items: deliveryNoteData.items || [{ description: "", quantity: 1, notes: "" }],
           deliveryInstructions: deliveryNoteData.deliveryInstructions || "",
@@ -249,7 +253,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
         },
         language: values.clientLanguage || "en",
         deliveryNoteNumber: values.deliveryNoteNumber,
-        deliveryDate: values.deliveryDate.toISOString(),
+        deliveryDate: persistDocumentDateYmd(values.deliveryDate),
         deliveryAddress: values.deliveryAddress || "",
         items: values.items,
         deliveryInstructions: values.deliveryInstructions || "",
@@ -407,7 +411,7 @@ export default function EditDeliveryNotePage({ params }: { params: Promise<{ id:
                                         !field.value && "text-muted-foreground",
                                       )}
                                     >
-                                      {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                      {field.value ? formatDocumentDateBerlin(field.value, "PPP") : <span>Pick a date</span>}
                                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
                                   </FormControl>

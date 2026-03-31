@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { FileText, Receipt, TruckIcon, BarChart3, Menu, X, LogOut } from 'lucide-react'
+import { FileText, Receipt, TruckIcon, BarChart3, Menu, X, LogOut, Wallet, ArrowLeftRight } from 'lucide-react'
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import {
@@ -18,12 +18,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/lib/auth-provider"
 import { useState } from "react"
 import { usePathname } from "next/navigation"
+import { GoogleDriveConnectButton } from "@/components/google-drive-connect-button"
 
 const navItems = [
   { name: "Invoices", href: "/invoices", icon: <FileText className="h-4 w-4" /> },
   { name: "Receipts", href: "/receipts", icon: <Receipt className="h-4 w-4" /> },
   { name: "Delivery Notes", href: "/delivery-notes", icon: <TruckIcon className="h-4 w-4" /> },
+  { name: "Costs", href: "/costs", icon: <Wallet className="h-4 w-4" /> },
   { name: "Reports", href: "/reports", icon: <BarChart3 className="h-4 w-4" /> },
+  { name: "Exchange rates", href: "/exchange-rates", icon: <ArrowLeftRight className="h-4 w-4" /> },
 ]
 
 export function Navbar() {
@@ -67,6 +70,7 @@ export function Navbar() {
             </div>
           </div>
           <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
+            {user ? <GoogleDriveConnectButton /> : null}
             <ModeToggle />
             {user ? (
               <DropdownMenu>
@@ -138,6 +142,11 @@ export function Navbar() {
                 </div>
               </Link>
             ))}
+            {user ? (
+              <div className="px-4 py-3 border-t border-b">
+                <GoogleDriveConnectButton className="w-full justify-start" />
+              </div>
+            ) : null}
           </div>
           <div className="border-t pb-3 pt-4">
             {user ? (

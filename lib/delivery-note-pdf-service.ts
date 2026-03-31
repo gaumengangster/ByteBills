@@ -1,13 +1,11 @@
 import jsPDF from "jspdf"
-import { format } from "date-fns"
-import { de as dateFnsDe } from "date-fns/locale"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { getTranslations } from "./translations"
 import { registerFonts } from "./pdf-fonts"
 
 export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> {
   const lang = deliveryNote.language || "en"
   const t = getTranslations(lang)
-  const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
   await registerFonts(pdf)
@@ -31,7 +29,7 @@ export async function generateDeliveryNotePDF(deliveryNote: any): Promise<Blob> 
   pdf.setFont("Roboto", "normal")
   pdf.text(`${t.deliveryNoteNumber}: ${deliveryNote.deliveryNoteNumber}`, margin, y)
   y += 5
-  pdf.text(`${t.date}: ${format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
+  pdf.text(`${t.date}: ${formatDocumentDateBerlin(deliveryNote.deliveryDate, "MMMM d, yyyy")}`, margin, y)
   y += 5
 
   if (deliveryNote.invoiceReference) {

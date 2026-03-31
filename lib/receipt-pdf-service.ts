@@ -1,6 +1,5 @@
 import jsPDF from "jspdf"
-import { format } from "date-fns"
-import { de as dateFnsDe } from "date-fns/locale"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { getTranslations, getPaymentMethodTranslated } from "./translations"
 import { registerFonts } from "./pdf-fonts"
 import { shouldShowReverseChargeNotice } from "./reverse-charge"
@@ -8,7 +7,6 @@ import { shouldShowReverseChargeNotice } from "./reverse-charge"
 export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   const lang = receipt.language || "en"
   const t = getTranslations(lang)
-  const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
   await registerFonts(pdf)
@@ -34,7 +32,7 @@ export async function generateReceiptPDF(receipt: any): Promise<Blob> {
   pdf.setFont("Roboto", "normal")
   pdf.text(`${t.receiptNumber}: ${receipt.receiptNumber}`, margin, y)
   y += 5
-  pdf.text(`${t.date}: ${format(new Date(receipt.receiptDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
+  pdf.text(`${t.date}: ${formatDocumentDateBerlin(receipt.receiptDate, "MMMM d, yyyy")}`, margin, y)
   y += 5
 
   if (receipt.invoiceReference) {

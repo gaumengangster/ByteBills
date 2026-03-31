@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
 import { formatCurrency } from "@/lib/utils"
@@ -79,6 +79,21 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [user, id, router])
 
+  const refreshInvoice = async () => {
+    if (!user || !id) return
+    try {
+      const invoiceDoc = await getDoc(doc(db, "invoices", id))
+      if (!invoiceDoc.exists()) return
+      setInvoice({
+        id: invoiceDoc.id,
+        userId: invoiceDoc.data().userId,
+        ...invoiceDoc.data(),
+      })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleStatusChange = async (newStatus: string) => {
     try {
       const invoiceRef = doc(db, "invoices", id)
@@ -142,13 +157,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center mt-1">
               {getStatusBadge(invoice.status)}
               <span className="text-muted-foreground ml-2">
-                Last updated: {format(new Date(invoice.updatedAt), "MMM d, yyyy")}
+                Last updated: {formatDocumentDateBerlin(invoice.updatedAt, "MMM d, yyyy")}
               </span>
             </div>
           </div>
 
           {user ?
-            (<InvoiceActions invoice={invoice} userId={user.uid} onStatusChange={handleStatusChange} />)
+            (<InvoiceActions invoice={invoice} onStatusChange={handleStatusChange} onInvoiceRefresh={refreshInvoice} />)
             : (<p>Loading user data...</p>)
           }
         </div>
@@ -169,14 +184,14 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     <h3 className="font-medium mb-1">Invoice Date</h3>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                      {format(new Date(invoice.invoiceDate), "MMMM d, yyyy")}
+                      {formatDocumentDateBerlin(invoice.invoiceDate, "MMMM d, yyyy")}
                     </div>
                   </div>
                   <div>
                     <h3 className="font-medium mb-1">Due Date</h3>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                      {format(new Date(invoice.dueDate), "MMMM d, yyyy")}
+                      {formatDocumentDateBerlin(invoice.dueDate, "MMMM d, yyyy")}
                     </div>
                   </div>
                   <div>
@@ -378,8 +393,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 <h1 className="text-2xl font-bold mb-1">INVOICE</h1>
                 <div className="text-gray-600">
                   <div>Invoice # {invoice.invoiceNumber}</div>
-                  <div>Date: {format(new Date(invoice.invoiceDate), "PP")}</div>
-                  <div>Due: {format(new Date(invoice.dueDate), "PP")}</div>
+                  <div>Date: {formatDocumentDateBerlin(invoice.invoiceDate, "PP")}</div>
+                  <div>Due: {formatDocumentDateBerlin(invoice.dueDate, "PP")}</div>
                 </div>
               </div>
 

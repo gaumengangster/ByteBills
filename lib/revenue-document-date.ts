@@ -1,4 +1,4 @@
-import { parseISO } from "date-fns"
+import { parseStoredDocumentDate } from "@/lib/document-date-berlin"
 
 /**
  * Date used to bucket revenue in charts: invoices use `invoiceDate`, receipts use `receiptDate`.
@@ -8,15 +8,14 @@ export function getRevenueDocumentDate(doc: {
   type?: string
   invoiceDate?: unknown
   receiptDate?: unknown
-  createdAt?: unknown
 }): Date {
   if (doc.type === "invoices") {
-    return parseUnknownDate(doc.invoiceDate)
+    return parseStoredDocumentDate(doc.invoiceDate)
   }
   if (doc.type === "receipts") {
-    return parseUnknownDate(doc.receiptDate)
+    return parseStoredDocumentDate(doc.receiptDate)
   }
-  return parseUnknownDate(doc.createdAt)
+  return new Date(NaN)
 }
 
 /**
@@ -31,29 +30,13 @@ export function getDocumentChartDate(doc: {
   deliveryDate?: unknown
 }): Date {
   if (doc.type === "invoices" || doc.type === "proformaInvoices") {
-    return parseUnknownDate(doc.invoiceDate)
+    return parseStoredDocumentDate(doc.invoiceDate)
   }
   if (doc.type === "receipts") {
-    return parseUnknownDate(doc.receiptDate)
+    return parseStoredDocumentDate(doc.receiptDate)
   }
   if (doc.type === "deliveryNotes") {
-    return parseUnknownDate(doc.deliveryDate)
+    return parseStoredDocumentDate(doc.deliveryDate)
   }
   return new Date(NaN)
-}
-
-function parseUnknownDate(value: unknown): Date {
-  if (value == null) {
-    return new Date(NaN)
-  }
-  if (value instanceof Date) {
-    return value
-  }
-  if (typeof value === "object" && value !== null && "toDate" in value && typeof (value as { toDate?: () => Date }).toDate === "function") {
-    return (value as { toDate: () => Date }).toDate()
-  }
-  if (typeof value === "string") {
-    return parseISO(value)
-  }
-  return new Date(value as number)
 }

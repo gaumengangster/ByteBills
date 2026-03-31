@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { Calendar, Mail, Phone, User, ArrowLeft, Download, Edit, Trash2, Loader2, Badge } from "lucide-react"
 import { generateDeliveryNotePDF, downloadDeliveryNotePDF } from "@/lib/delivery-note-pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
@@ -97,7 +97,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
 
     try {
       const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote))
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote, "deliveryNote"))
 
       toast({
         title: "PDF generated",
@@ -154,7 +154,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
             <h1 className="text-3xl font-bold">Delivery Note #{deliveryNote.deliveryNoteNumber}</h1>
             <div className="flex items-center mt-1">
               <span className="text-muted-foreground">
-                {format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy")}
+                {formatDocumentDateBerlin(deliveryNote.deliveryDate, "MMMM d, yyyy")}
               </span>
             </div>
           </div>
@@ -207,7 +207,7 @@ export default function DeliveryNoteDetailPage({ params }: { params: Promise<{ i
                     <h3 className="font-medium mb-1">Delivery Date</h3>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                      {format(new Date(deliveryNote.deliveryDate), "MMMM d, yyyy")}
+                      {formatDocumentDateBerlin(deliveryNote.deliveryDate, "MMMM d, yyyy")}
                     </div>
                   </div>
                   {deliveryNote.invoiceReference && (

@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { collection, query, where, getDocs, orderBy, doc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -150,7 +150,7 @@ export default function DeliveryNotesPage() {
     try {
       // Generate PDF directly
       const pdfBlob = await generateDeliveryNotePDF(deliveryNote)
-      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote))
+      downloadDeliveryNotePDF(pdfBlob, buildDocumentFilename(deliveryNote, "deliveryNote"))
 
       toast({
         title: "PDF generated",
@@ -268,7 +268,7 @@ export default function DeliveryNotesPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{format(new Date(note.deliveryDate), "MMM d, yyyy")}</TableCell>
+                    <TableCell>{formatDocumentDateBerlin(note.deliveryDate, "MMM d, yyyy")}</TableCell>
                     <TableCell>
                       {note.invoiceReference && <div className="text-xs">Invoice: {note.invoiceReference}</div>}
                       {note.orderReference && <div className="text-xs">Order: {note.orderReference}</div>}

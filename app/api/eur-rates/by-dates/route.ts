@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server"
 import {
-  loadEcbHistRatesCached,
   mergeEcbLiveRates,
-  resolveRatesForCalendarDate,
+  resolveEcbRatesForDocumentDates,
   type EurRatesByDocumentDate,
 } from "@/lib/eur-rates"
 
-/** Returns merged ECB rates for each requested yyyy-MM-dd (invoice/receipt business date). */
+/** Document-save flows: per-date resolved-rate cache + on-demand ECB XML fetch in `resolveEcbRatesForDocumentDates`. */
+export const dynamic = "force-dynamic"
+
+/** Returns merged ECB rates for each requested yyyy-MM-dd (invoice/receipt/bill business date). */
 export async function POST(req: Request) {
   let unique: string[] = []
   try {
@@ -17,11 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ rates: {} as EurRatesByDocumentDate })
     }
 
-    const { byDate, sortedKeys } = await loadEcbHistRatesCached()
-    const rates: EurRatesByDocumentDate = {}
-    for (const d of unique) {
-      rates[d] = resolveRatesForCalendarDate(sortedKeys, byDate, d)
-    }
+    const rates = await resolveEcbRatesForDocumentDates(unique)
     return NextResponse.json({ rates })
   } catch (e) {
     console.warn("ECB by-dates resolution failed", e)

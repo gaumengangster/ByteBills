@@ -3,7 +3,15 @@
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Line, LineChart, XAxis, YAxis, CartesianGrid, TooltipProps, LabelList } from "recharts"
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, isSameDay } from "date-fns"
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  eachMonthOfInterval,
+  isSameDay,
+  getYear,
+} from "date-fns"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import {
   buildRevenueYTicks,
@@ -11,45 +19,30 @@ import {
   formatRevenueFull,
 } from "@/lib/format-chart-axis"
 import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
-import {
-  convertAmountToEur,
-  mergeEcbLiveRates,
-  type EurRatesByDocumentDate,
-  type EurReferenceRates,
-} from "@/lib/eur-rates"
+import { revenueTotalEurFromDoc } from "@/lib/revenue-document-eur"
 
-const DISPLAY_CURRENCY = "EUR"
+import { getDisplayCurrency } from "@/lib/env-public"
+
+const DISPLAY_CURRENCY = getDisplayCurrency()
 
 type RevenueChartProps = {
   documents: any[]
   timeframe: string
   startDate: Date
   endDate: Date
-  /** ECB rates per invoice/receipt calendar date (yyyy-MM-dd). */
-  eurRatesByDocDate?: EurRatesByDocumentDate
 }
 
-export function RevenueChart({ documents, timeframe, startDate, endDate, eurRatesByDocDate }: RevenueChartProps) {
+export function RevenueChart({ documents, timeframe, startDate, endDate }: RevenueChartProps) {
   const [chartData, setChartData] = useState<any[]>([])
 
   const revenueDocumentsForCurrency = useMemo(() => {
     return documents.filter((doc) => {
-      if ((doc.type !== "invoices" && doc.type !== "receipts") || !doc.total) {
-        return false
-      }
+      if (doc.type !== "invoices") return false
+      if (typeof doc.totalEur !== "number" || !Number.isFinite(doc.totalEur)) return false
       const d = getRevenueDocumentDate(doc)
       return !Number.isNaN(d.getTime())
     })
   }, [documents])
-
-  const ratesForDoc = (doc: (typeof documents)[0]): EurReferenceRates => {
-    const d = getRevenueDocumentDate(doc)
-    if (Number.isNaN(d.getTime())) {
-      return mergeEcbLiveRates({})
-    }
-    const key = format(d, "yyyy-MM-dd")
-    return eurRatesByDocDate?.[key] ?? mergeEcbLiveRates({})
-  }
 
   useEffect(() => {
     if (!documents.length) {
@@ -57,7 +50,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
       return
     }
 
-    // Invoices: group by invoiceDate. Receipts: group by receiptDate (no createdAt fallback).
+    // Invoices only; group by invoice date.
     const revenueDocuments = revenueDocumentsForCurrency
 
     let data: any[] = []
@@ -73,7 +66,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
         })
         
         const dayRevenue = dayDocs.reduce(
-          (sum, doc) => sum + convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc)),
+          (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
           0,
         )
         
@@ -84,10 +77,18 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
         }
       })
     } else {
-      // Monthly data
-      const months = eachMonthOfInterval({ start: startDate, end: endDate })
-      
-      data = months.map(month => {
+      // Monthly data — full calendar year = 12 months when a year is selected (this / last year)
+      let monthRangeStart = startDate
+      let monthRangeEnd = endDate
+      if (timeframe === "thisYear" || timeframe === "lastYear") {
+        const y = getYear(startDate)
+        monthRangeStart = new Date(y, 0, 1)
+        monthRangeEnd = new Date(y, 11, 31, 23, 59, 59, 999)
+      }
+
+      const months = eachMonthOfInterval({ start: monthRangeStart, end: monthRangeEnd })
+
+      data = months.map((month) => {
         const monthStart = startOfMonth(month)
         const monthEnd = endOfMonth(month)
         
@@ -97,7 +98,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
         })
         
         const monthRevenue = monthDocs.reduce(
-          (sum, doc) => sum + convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc)),
+          (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
           0,
         )
         
@@ -110,7 +111,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
     }
 
     setChartData(data)
-  }, [documents, timeframe, startDate, endDate, revenueDocumentsForCurrency, eurRatesByDocDate])
+  }, [documents, timeframe, startDate, endDate, revenueDocumentsForCurrency])
 
   const maxRevenue = chartData.length ? Math.max(0, ...chartData.map((d) => d.revenue ?? 0)) : 0
   const revenueYTicks = buildRevenueYTicks(maxRevenue)
@@ -130,7 +131,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate, eurRate
         className="aspect-auto h-full w-full min-h-0 min-w-0 max-w-full [&_.recharts-responsive-container]:!max-w-full"
         config={{
           revenue: {
-            label: "Revenue",
+            label: "Invoice revenue",
             color: "hsl(var(--chart-1))",
           },
         }}

@@ -21,34 +21,36 @@ import {
   ArrowDownRight,
   Loader2,
   Percent,
+  Landmark,
+  Wallet,
+  ScrollText,
 } from "lucide-react"
 import { RevenueChart } from "@/components/reports/revenue-chart"
 import { DocumentsChart } from "@/components/reports/documents-chart"
 import { TopClientsTable } from "@/components/reports/top-clients-table"
 import { DocumentStatusChart } from "@/components/reports/document-status-chart"
 import { MonthlyComparisonChart } from "@/components/reports/monthly-comparison-chart"
-import {
-  convertAmountToEur,
-  fetchEurRatesForDocumentDates,
-  mergeEcbLiveRates,
-  type EurRatesByDocumentDate,
-  type EurReferenceRates,
-} from "@/lib/eur-rates"
-import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
 import { resolveClientCountryCode } from "@/lib/client-country"
+import {
+  aggregateElsterQuarterForDocuments,
+  type ElsterQuarterSummary,
+  type ElsterZmRow,
+} from "@/lib/elster-quarter"
+import { getElsterReportUi, getEurReportUi, getReportsDashboardUi } from "@/lib/translations"
+import { aggregateEurAnnualSummary, type EurAnnualSummary } from "@/lib/eur-annual-summary"
+import { fetchPauschalCostsForUser, fetchAssetsForUser } from "@/lib/fetch-pauschal-assets"
+import { sumBillsVatAmountEur } from "@/lib/report-eur-rates"
+import { fetchBillsInDateRange, fetchBillsForVatPeriod, fetchBillsForEuerYear } from "@/lib/report-fetch-bills"
+import { invoiceTaxEurFromDoc } from "@/lib/revenue-document-eur"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-function taxToEur(doc: { tax?: unknown; currency?: string }, eurRates: EurReferenceRates): number {
-  const raw = doc.tax
-  if (raw == null || raw === "") {
-    return 0
-  }
-  const n = typeof raw === "number" ? raw : Number(raw)
-  if (!Number.isFinite(n)) {
-    return 0
-  }
-  const eur = convertAmountToEur(n, doc.currency, eurRates)
-  return Number.isFinite(eur) ? eur : 0
-}
 
 interface Document {
   id: string;
@@ -140,6 +142,15 @@ export default function ReportsPage() {
   const router = useRouter()
   const [timeframe, setTimeframe] = useState(() => getLast4QuartersFromNow()[0].value)
   const last4Quarters = useMemo(() => getLast4QuartersFromNow(), [])
+  /** True only when the period dropdown is a calendar quarter (`YYYY-Qn`), not "Last 30 days" etc. */
+  const isQuarterTimeframe = useMemo(() => QUARTER_TF.test(timeframe), [timeframe])
+  const isYearTimeframe = useMemo(
+    () => timeframe === "thisYear" || timeframe === "lastYear",
+    [timeframe],
+  )
+  const elsterUi = useMemo(() => getElsterReportUi("en"), [])
+  const eurUi = useMemo(() => getEurReportUi("en"), [])
+  const reportsDash = useMemo(() => getReportsDashboardUi("en"), [])
   const [loadingData, setLoadingData] = useState(true)
   const [reportData, setReportData] = useState<any>({
     summary: {
@@ -156,10 +167,14 @@ export default function ReportsPage() {
       totalVatReceived: 0,
       previousPeriodVat: 0,
       vatChange: 0,
+      totalVatSpent: 0,
+      previousPeriodVatSpent: 0,
+      vatSpentChange: 0,
     },
     documents: [],
     clients: [],
-    eurRatesByDocDate: null as EurRatesByDocumentDate | null,
+    elster: null as ElsterQuarterSummary | null,
+    eur: null as EurAnnualSummary | null,
   })
 
   useEffect(() => {
@@ -249,10 +264,11 @@ export default function ReportsPage() {
 
           snapshot.forEach((doc) => {
             const data = doc.data()
+            // Spread first so `id` / `type` always reflect the Firestore collection (not overwritten by `data.type` etc.)
             allDocuments.push({
+              ...data,
               id: doc.id,
               type: docType,
-              ...data,
             })
 
             // Add client to unique set
@@ -260,6 +276,26 @@ export default function ReportsPage() {
               clientSet.add(data.clientDetails.name)
             }
           })
+        }
+
+        const billsInRange = await fetchBillsInDateRange(user.uid, startDate, endDate)
+
+        // For VAT calculations: use vatYear/vatQuarter fields on the document.
+        // For EÜR calculations: use euerYear field on the document.
+        // Fall back to billsInRange (expenseDate) for non-quarter/non-year timeframes.
+        let vatBills: Record<string, unknown>[] = billsInRange
+        let euerBills: Record<string, unknown>[] = billsInRange
+        if (quarterMatch) {
+          const qYear = parseInt(quarterMatch[1], 10)
+          const qNum  = `Q${quarterMatch[2]}` as "Q1" | "Q2" | "Q3" | "Q4"
+          vatBills  = await fetchBillsForVatPeriod(user.uid, qYear, qNum)
+          euerBills = vatBills // quarter view: same set for both
+        } else if (timeframe === "thisYear" || timeframe === "lastYear") {
+          const reportYear = getYear(endDate)
+          ;[vatBills, euerBills] = await Promise.all([
+            fetchBillsForVatPeriod(user.uid, reportYear),
+            fetchBillsForEuerYear(user.uid, reportYear),
+          ])
         }
 
         // Fetch previous period data for comparison
@@ -274,65 +310,36 @@ export default function ReportsPage() {
           })
         }
 
-        const revenueDateKeys = new Set<string>()
-        for (const doc of allDocuments) {
-          if (doc.type === "invoices" || doc.type === "receipts") {
-            const d = getRevenueDocumentDate(doc)
-            if (!Number.isNaN(d.getTime())) {
-              revenueDateKeys.add(format(d, "yyyy-MM-dd"))
-            }
-          }
+        // Previous period VAT: use vatYear-based fetch when on a quarter view
+        let previousVatBills: Record<string, unknown>[]
+        if (prevQuarterMatch) {
+          const pYear = parseInt(prevQuarterMatch[1], 10) - 1
+          const pNum  = `Q${prevQuarterMatch[2]}` as "Q1" | "Q2" | "Q3" | "Q4"
+          previousVatBills = await fetchBillsForVatPeriod(user.uid, pYear, pNum)
+        } else {
+          previousVatBills = await fetchBillsInDateRange(user.uid, previousStartDate, previousEndDate)
         }
-        for (const row of previousSnapshotRows) {
-          if (row.docType === "invoices" || row.docType === "receipts") {
-            const d = getRevenueDocumentDate({
-              type: row.docType,
-              invoiceDate: row.data.invoiceDate,
-              receiptDate: row.data.receiptDate,
-            })
-            if (!Number.isNaN(d.getTime())) {
-              revenueDateKeys.add(format(d, "yyyy-MM-dd"))
-            }
-          }
-        }
-
-        const eurRatesByDocDate = await fetchEurRatesForDocumentDates([...revenueDateKeys])
-
-        const ratesForDoc = (doc: { type?: string; invoiceDate?: unknown; receiptDate?: unknown }) => {
-          const d = getRevenueDocumentDate(doc)
-          if (Number.isNaN(d.getTime())) {
-            return mergeEcbLiveRates({})
-          }
-          const key = format(d, "yyyy-MM-dd")
-          return eurRatesByDocDate[key] ?? mergeEcbLiveRates({})
-        }
+        const previousBillsInRange = previousVatBills
 
         let totalRevenue = 0
         for (const doc of allDocuments) {
-          if ((doc.type === "invoices" || doc.type === "receipts") && doc.total) {
-            totalRevenue += convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc))
-          }
+          if (doc.type !== "invoices") continue
+          const d = doc as Record<string, unknown>
+          if (typeof d.totalEur !== "number" || !Number.isFinite(d.totalEur)) continue
+          totalRevenue += d.totalEur
         }
 
         let previousPeriodRevenue = 0
         let previousPeriodVat = 0
         for (const row of previousSnapshotRows) {
           const { docType, data } = row
-          const synthetic = {
-            type: docType,
-            invoiceDate: data.invoiceDate,
-            receiptDate: data.receiptDate,
-          }
-          const r = ratesForDoc(synthetic)
-          if ((docType === "invoices" || docType === "receipts") && data.total) {
-            previousPeriodRevenue += convertAmountToEur(
-              data.total as number,
-              data.currency as string | undefined,
-              r,
-            )
-          }
-          if (docType === "invoices" || docType === "receipts") {
-            previousPeriodVat += taxToEur(data as { tax?: unknown; currency?: string }, r)
+          const synthetic = { ...data, type: docType } as Record<string, unknown>
+          if (docType === "invoices") {
+            const te = synthetic.totalEur
+            if (typeof te === "number" && Number.isFinite(te)) {
+              previousPeriodRevenue += te
+            }
+            previousPeriodVat += invoiceTaxEurFromDoc(synthetic)
           }
         }
 
@@ -351,8 +358,9 @@ export default function ReportsPage() {
               : 100
             : ((allDocuments.length - previousPeriodDocuments) / previousPeriodDocuments) * 100
 
-        // Calculate average value
-        const averageValue = totalRevenue / (documentCounts.invoices + documentCounts.receipts || 1)
+        // Average invoice amount (EUR): same basis as Total Revenue (invoices only)
+        const invoicesCount = documentCounts.invoices || 0
+        const averageValue = invoicesCount > 0 ? totalRevenue / invoicesCount : 0
 
         // Process client data for top clients (by revenue)
         type ClientAgg = {
@@ -361,12 +369,15 @@ export default function ReportsPage() {
           country: string | null
           serviceDescriptions: Set<string>
           revenue: number
-          revenueDocCount: number
+          invoiceCount: number
+          receiptCount: number
         }
 
         const clientData: Record<string, ClientAgg> = {}
 
         allDocuments.forEach((doc) => {
+          if (doc.type !== "invoices") return
+
           const clientName = doc.clientDetails?.name || "Unknown Client"
 
           if (!clientData[clientName]) {
@@ -376,7 +387,8 @@ export default function ReportsPage() {
               country: null,
               serviceDescriptions: new Set<string>(),
               revenue: 0,
-              revenueDocCount: 0,
+              invoiceCount: 0,
+              receiptCount: 0,
             }
           }
 
@@ -403,12 +415,19 @@ export default function ReportsPage() {
             }
           }
 
-          if (doc.type === "invoices" || doc.type === "receipts") {
-            row.revenueDocCount += 1
-            if (doc.total) {
-              row.revenue += convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc))
-            }
+          row.invoiceCount += 1
+          const te = (doc as Record<string, unknown>).totalEur
+          if (typeof te === "number" && Number.isFinite(te)) {
+            row.revenue += te
           }
+        })
+
+        allDocuments.forEach((doc) => {
+          if (doc.type !== "receipts") return
+          const clientName = doc.clientDetails?.name || "Unknown Client"
+          const row = clientData[clientName]
+          if (!row) return
+          row.receiptCount += 1
         })
 
         const topClients = Object.values(clientData)
@@ -418,18 +437,22 @@ export default function ReportsPage() {
             name: c.name,
             vatId: c.vatId || "—",
             country: c.country || "—",
-            documentCount: c.revenueDocCount,
+            invoiceCount: c.invoiceCount,
+            receiptCount: c.receiptCount,
             serviceDescriptions: Array.from(c.serviceDescriptions).sort().join("; "),
             revenue: c.revenue,
-            averageValue: c.revenueDocCount > 0 ? c.revenue / c.revenueDocCount : 0,
+            averageValue: c.invoiceCount > 0 ? c.revenue / c.invoiceCount : 0,
           }))
 
+        // VAT received: `invoices` collection only (taxEur); receipts / proforma / delivery notes excluded
         let totalVatReceived = 0
-        allDocuments.forEach((doc) => {
-          if (doc.type === "invoices" || doc.type === "receipts") {
-            totalVatReceived += taxToEur(doc, ratesForDoc(doc))
-          }
-        })
+        for (const doc of allDocuments) {
+          if (doc.type !== "invoices") continue
+          totalVatReceived += invoiceTaxEurFromDoc(doc as Record<string, unknown>)
+        }
+
+        const totalVatSpent = sumBillsVatAmountEur(vatBills)
+        const previousPeriodVatSpent = sumBillsVatAmountEur(previousBillsInRange)
 
         const previousVatSafe = Number.isFinite(previousPeriodVat) ? previousPeriodVat : 0
         const totalVatSafe = Number.isFinite(totalVatReceived) ? totalVatReceived : 0
@@ -439,6 +462,32 @@ export default function ReportsPage() {
               ? 0
               : 100
             : ((totalVatSafe - previousVatSafe) / previousVatSafe) * 100
+
+        const previousVatSpentSafe = Number.isFinite(previousPeriodVatSpent) ? previousPeriodVatSpent : 0
+        const totalVatSpentSafe = Number.isFinite(totalVatSpent) ? totalVatSpent : 0
+        const vatSpentChange =
+          previousVatSpentSafe === 0
+            ? totalVatSpentSafe === 0
+              ? 0
+              : 100
+            : ((totalVatSpentSafe - previousVatSpentSafe) / previousVatSpentSafe) * 100
+
+        const elster = quarterMatch ? aggregateElsterQuarterForDocuments(allDocuments, vatBills) : null
+
+        let eur: EurAnnualSummary | null = null
+        if (timeframe === "thisYear" || timeframe === "lastYear") {
+          const [pauschalDocs, assetDocs] = await Promise.all([
+            fetchPauschalCostsForUser(user.uid),
+            fetchAssetsForUser(user.uid),
+          ])
+          const calendarYear = getYear(endDate)
+          eur = aggregateEurAnnualSummary(allDocuments, euerBills, {
+            calendarYear,
+            pauschalDocs,
+            assetDocs,
+            vatBills,
+          })
+        }
 
         setReportData({
           summary: {
@@ -455,10 +504,14 @@ export default function ReportsPage() {
             totalVatReceived: totalVatSafe,
             previousPeriodVat: previousVatSafe,
             vatChange: Number.isFinite(vatChange) ? vatChange : 100,
+            totalVatSpent: totalVatSpentSafe,
+            previousPeriodVatSpent: previousVatSpentSafe,
+            vatSpentChange: Number.isFinite(vatSpentChange) ? vatSpentChange : 100,
           },
           documents: allDocuments,
           clients: topClients,
-          eurRatesByDocDate,
+          elster,
+          eur,
           timeframe: {
             startDate,
             endDate,
@@ -542,22 +595,43 @@ export default function ReportsPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               <StatCard 
-                title="Total Revenue" 
+                title={reportsDash.totalRevenueInvoicesTitle} 
                 value={formatEur(reportData.summary.totalRevenue)}
                 icon={<DollarSign className="h-5 w-5" />}
                 change={reportData.summary.revenueChange}
               />
               <StatCard
-                title="VAT received"
+                title={reportsDash.vatReceivedInvoicesTitle}
                 value={formatEur(reportData.summary.totalVatReceived)}
                 icon={<Percent className="h-5 w-5" />}
                 change={reportData.summary.vatChange}
                 secondaryText={
-                  (reportData.summary.previousPeriodVat ?? 0) !== 0
-                    ? `Previous period: ${formatEur(reportData.summary.previousPeriodVat ?? 0)}`
-                    : undefined
+                  [
+                    reportsDash.vatReceivedInvoicesSecondary,
+                    (reportData.summary.previousPeriodVat ?? 0) !== 0
+                      ? `Previous: ${formatEur(reportData.summary.previousPeriodVat ?? 0)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || undefined
+                }
+              />
+              <StatCard
+                title={reportsDash.vatPaidCostsTitle}
+                value={formatEur(reportData.summary.totalVatSpent)}
+                icon={<Wallet className="h-5 w-5" />}
+                change={reportData.summary.vatSpentChange}
+                secondaryText={
+                  [
+                    reportsDash.vatPaidCostsSecondary,
+                    (reportData.summary.previousPeriodVatSpent ?? 0) !== 0
+                      ? `Previous: ${formatEur(reportData.summary.previousPeriodVatSpent ?? 0)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || undefined
                 }
               />
               <StatCard 
@@ -571,12 +645,244 @@ export default function ReportsPage() {
                 value={reportData.summary.totalClients.toString()}
                 icon={<Users className="h-5 w-5" />}
               />
-              <StatCard 
-                title="Average Value" 
+              <StatCard
+                title="Average invoice"
                 value={formatEur(reportData.summary.averageValue)}
                 icon={<Calculator className="h-5 w-5" />}
+                secondaryText="EUR per invoice in period"
               />
             </div>
+
+            {isQuarterTimeframe && reportData.elster ? (
+              <Card className="mb-8">
+                <CardHeader>
+                  <div className="flex items-start gap-2">
+                    <Landmark className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground" />
+                    <div>
+                      <CardTitle>{elsterUi.cardTitle}</CardTitle>
+                      <CardDescription>{elsterUi.cardDescription}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[140px]">{elsterUi.tableItem}</TableHead>
+                          <TableHead className="min-w-[100px]">{elsterUi.tableElsterLine}</TableHead>
+                          <TableHead className="text-right min-w-[100px]">{elsterUi.tableEur}</TableHead>
+                          <TableHead className="min-w-[220px]">{elsterUi.tableDescription}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell className="font-medium">{elsterUi.rowReceivedVatInvoiceLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {elsterUi.rowReceivedVatInvoiceLineRef}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.elster.receivedVatInvoicesEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {elsterUi.rowReceivedVatInvoiceDescription}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">{elsterUi.rowPaidVatCostsLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{elsterUi.rowPaidVatCostsLineRef}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.elster.paidVatCostsEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{elsterUi.rowPaidVatCostsDescription}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">{elsterUi.rowTaxFreeLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{elsterUi.rowTaxFreeLineRef}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.elster.taxFreeNetInvoicesEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{elsterUi.rowTaxFreeDescription}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {elsterUi.costsInTotalNote.replace("{count}", String(reportData.elster.costsBillCount))}
+                  </p>
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">{elsterUi.zmSectionTitle}</h4>
+                    <div className="rounded-md border overflow-x-auto max-h-[280px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{elsterUi.zmColClient}</TableHead>
+                            <TableHead>{elsterUi.zmColVatId}</TableHead>
+                            <TableHead>{elsterUi.zmColCountry}</TableHead>
+                            <TableHead className="text-right">{elsterUi.zmColNet}</TableHead>
+                            <TableHead className="text-right">{elsterUi.zmColVat}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reportData.elster.zmRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-muted-foreground text-sm">
+                                {elsterUi.zmEmptyQuarter}
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            reportData.elster.zmRows.map((row: ElsterZmRow) => (
+                              <TableRow key={row.clientName}>
+                                <TableCell className="font-medium">{row.clientName}</TableCell>
+                                <TableCell>{row.vatId}</TableCell>
+                                <TableCell>{row.countryCode}</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatEur(row.nettoEur)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatEur(row.vatEur)}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{elsterUi.zmFooterNote}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {isYearTimeframe && reportData.eur ? (
+              <Card className="mb-8">
+                <CardHeader>
+                  <div className="flex items-start gap-2">
+                    <ScrollText className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground" />
+                    <div>
+                      <CardTitle>{eurUi.cardTitle}</CardTitle>
+                      <CardDescription>{eurUi.cardDescription}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[120px]">{eurUi.colNeed}</TableHead>
+                          <TableHead className="min-w-[140px]">{eurUi.colFirestore}</TableHead>
+                          <TableHead className="min-w-[140px]">{eurUi.colAnlage}</TableHead>
+                          <TableHead className="text-right min-w-[100px]">{eurUi.colSum}</TableHead>
+                          <TableHead className="min-w-[200px]">{eurUi.colNotes}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell className="font-medium">{eurUi.rowIncomeLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">
+                            {eurUi.rowIncomeFirestore}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowIncomeAnlage}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.incomeNetEur)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowIncomeDesc}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">{eurUi.rowExpenseLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">
+                            {eurUi.rowExpenseFirestore}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowExpenseAnlage}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.expenseNetEur)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowExpenseDesc}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">{eurUi.rowVatOutLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">
+                            {eurUi.rowVatOutFirestore}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowVatOutAnlage}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.outputVatEur)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowVatOutDesc}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">{eurUi.rowVatInLabel}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">
+                            {eurUi.rowVatInFirestore}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowVatInAnlage}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.inputVatEur)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowVatInDesc}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">Rent / home office (tagged bills)</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">bills · euerExpenseCategory</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">EÜR Z.52</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.eur.z52_homeoffice_mieteEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            Net from supplier bills tagged as home office / rent (optional field on save).
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">Pauschale (flat rates)</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">cost_pauschale · calculatedAmount</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">EÜR Z.53</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.eur.z53_pauschalenEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            Home office, Verpflegung, internet Pauschale (excl. Pendler) overlapping the year.
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">Commuting (Pendler)</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">cost_pauschale · mileage</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">EÜR Z.54</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.eur.z54_fahrtenEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">Pauschale category Pendler (km).</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">Depreciation (AfA)</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">assets · linear</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">EÜR Z.44 / Z.45</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.eur.z44_abschreibungenEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            Linear AfA for the calendar year from recorded assets.
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">Other expenses (tagged)</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-mono">bills · euerExpenseCategory</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">EÜR Z.59</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEur(reportData.eur.z59_sonstigesEur)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            Net from bills tagged as software, internet, bank fees, travel, insurance, office supplies, or
+                            education (optional).
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {(() => {
+                      const end = reportData?.timeframe?.endDate as Date | undefined
+                      const calendarYear =
+                        end instanceof Date && !Number.isNaN(end.getTime())
+                          ? getYear(end)
+                          : getYear(new Date())
+                      const filingDeadlineYear = calendarYear + 1
+                      return eurUi.footerDeadline
+                        .replace("{calendarYear}", String(calendarYear))
+                        .replace("{filingDeadlineYear}", String(filingDeadlineYear))
+                    })()}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Tabs defaultValue="overview" className="mb-8">
               <TabsList className="mb-4">
@@ -593,10 +899,13 @@ export default function ReportsPage() {
                       <CardTitle>Revenue Over Time</CardTitle>
                       <CardDescription>
                         {timeframe === "last30Days"
-                          ? "Daily revenue in EUR (amounts converted from document currency). By invoice/receipt date."
-                          : "Monthly revenue in EUR (amounts converted from document currency). By invoice/receipt date."}
+                          ? "Daily invoice revenue in EUR (totalEur per invoice). By invoice date."
+                          : "Monthly invoice revenue in EUR (totalEur per invoice). By invoice date."}
                         {QUARTER_TF.test(timeframe)
                           ? " Calendar quarter (full quarter range for the selected year)."
+                          : ""}
+                        {timeframe === "thisYear" || timeframe === "lastYear"
+                          ? " Twelve months (Jan–Dec); months with no revenue show €0."
                           : ""}
                       </CardDescription>
                     </CardHeader>
@@ -607,7 +916,6 @@ export default function ReportsPage() {
                         timeframe={timeframe}
                         startDate={reportData?.timeframe?.startDate}
                         endDate={reportData?.timeframe?.endDate}
-                        eurRatesByDocDate={reportData.eurRatesByDocDate ?? undefined}
                       />
                     </CardContent>
                   </Card>
@@ -690,7 +998,7 @@ export default function ReportsPage() {
                   <CardHeader>
                     <CardTitle>Top Clients by Revenue</CardTitle>
                     <CardDescription>
-                      Revenue in EUR (converted from document currency)
+                      Invoice revenue in EUR (totalEur); receipts excluded
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -704,7 +1012,7 @@ export default function ReportsPage() {
                   <CardHeader>
                     <CardTitle>Revenue / document comparison</CardTitle>
                     <CardDescription>
-                      Monthly revenue (EUR) and document count by month; same business dates as Documents Over Time
+                      Monthly invoice revenue (EUR) and total document count by month; revenue is invoices only
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[400px] min-w-0 overflow-hidden">
@@ -714,7 +1022,6 @@ export default function ReportsPage() {
                       timeframe={timeframe}
                       startDate={reportData?.timeframe?.startDate}
                       endDate={reportData?.timeframe?.endDate}
-                      eurRatesByDocDate={reportData.eurRatesByDocDate ?? undefined}
                     />
                   </CardContent>
                 </Card>

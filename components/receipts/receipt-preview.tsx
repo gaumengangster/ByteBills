@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { Badge, Download, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
@@ -91,7 +91,7 @@ export function ReceiptPreview({
       }
 
       const pdfBlob = await generateReceiptPDF(pdfData)
-      downloadReceiptPDF(pdfBlob, buildDocumentFilename(pdfData))
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(pdfData, "receipt"))
 
       toast({ title: "PDF generated", description: "Your receipt PDF has been downloaded." })
     } catch (error) {
@@ -116,7 +116,7 @@ export function ReceiptPreview({
                 <h1 className="text-2xl font-bold mb-1">RECEIPT</h1>
                 <div className="text-muted-foreground">
                   <div>Receipt # {receiptData.receiptNumber}</div>
-                  <div>Date: {receiptData.receiptDate ? format(new Date(receiptData.receiptDate), "PP") : "N/A"}</div>
+                  <div>Date: {receiptData.receiptDate ? formatDocumentDateBerlin(receiptData.receiptDate, "PP") : "N/A"}</div>
                   {receiptData.invoiceReference && <div>Invoice Ref: {receiptData.invoiceReference}</div>}
                 </div>
               </div>
@@ -170,7 +170,7 @@ export function ReceiptPreview({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <span className="text-muted-foreground">Payment Date:</span>
-                    <span>{receiptData.receiptDate ? format(new Date(receiptData.receiptDate), "PP") : "N/A"}</span>
+                    <span>{receiptData.receiptDate ? formatDocumentDateBerlin(receiptData.receiptDate, "PP") : "N/A"}</span>
                   </div>
                 </div>
               </div>

@@ -11,21 +11,17 @@ import {
   formatCurrencyAxisCompact,
   formatRevenueFull,
 } from "@/lib/format-chart-axis"
-import {
-  convertAmountToEur,
-  mergeEcbLiveRates,
-  type EurRatesByDocumentDate,
-  type EurReferenceRates,
-} from "@/lib/eur-rates"
+import { revenueTotalEurFromDoc } from "@/lib/revenue-document-eur"
 
-const DISPLAY_CURRENCY = "EUR"
+import { getDisplayCurrency } from "@/lib/env-public"
+
+const DISPLAY_CURRENCY = getDisplayCurrency()
 
 type MonthlyComparisonChartProps = {
   documents: any[]
   timeframe: string
   startDate: Date
   endDate: Date
-  eurRatesByDocDate?: EurRatesByDocumentDate
 }
 
 export function MonthlyComparisonChart({
@@ -33,28 +29,17 @@ export function MonthlyComparisonChart({
   timeframe,
   startDate,
   endDate,
-  eurRatesByDocDate,
 }: MonthlyComparisonChartProps) {
   const [chartData, setChartData] = useState<any[]>([])
 
   const revenueDocumentsForCurrency = useMemo(() => {
     return documents.filter((doc) => {
-      if ((doc.type !== "invoices" && doc.type !== "receipts") || !doc.total) {
-        return false
-      }
+      if (doc.type !== "invoices") return false
+      if (typeof doc.totalEur !== "number" || !Number.isFinite(doc.totalEur)) return false
       const d = getRevenueDocumentDate(doc)
       return !Number.isNaN(d.getTime())
     })
   }, [documents])
-
-  const ratesForDoc = (doc: (typeof documents)[0]): EurReferenceRates => {
-    const d = getRevenueDocumentDate(doc)
-    if (Number.isNaN(d.getTime())) {
-      return mergeEcbLiveRates({})
-    }
-    const key = format(d, "yyyy-MM-dd")
-    return eurRatesByDocDate?.[key] ?? mergeEcbLiveRates({})
-  }
 
   useEffect(() => {
     if (!documents.length) {
@@ -83,7 +68,7 @@ export function MonthlyComparisonChart({
       
       const documentCount = monthDocs.length
       const revenue = monthRevenueDocs.reduce(
-        (sum, doc) => sum + convertAmountToEur(doc.total, doc.currency, ratesForDoc(doc)),
+        (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
         0,
       )
       
@@ -96,7 +81,7 @@ export function MonthlyComparisonChart({
     })
 
     setChartData(data)
-  }, [documents, timeframe, startDate, endDate, revenueDocumentsForCurrency, eurRatesByDocDate])
+  }, [documents, timeframe, startDate, endDate, revenueDocumentsForCurrency])
 
   const maxRevenue = chartData.length ? Math.max(0, ...chartData.map((d) => d.revenue ?? 0)) : 0
   const revenueYTicks = buildRevenueYTicks(maxRevenue)
@@ -116,7 +101,7 @@ export function MonthlyComparisonChart({
         className="aspect-auto h-full w-full min-h-0 min-w-0 max-w-full [&_.recharts-responsive-container]:!max-w-full"
         config={{
           revenue: {
-            label: "Revenue",
+            label: "Invoice revenue",
             color: "hsl(var(--chart-1))",
           },
           documentCount: {
@@ -150,7 +135,7 @@ export function MonthlyComparisonChart({
             type="monotone"
             dataKey="revenue"
             stroke="var(--color-revenue)"
-            name="Revenue"
+            name="Invoice revenue"
             strokeWidth={2}
             dot={{ r: 4 }}
           />
@@ -182,7 +167,7 @@ function CustomTooltip({
                 <span>{entry.name}:</span>
               </div>
               <span className="font-medium ml-2">
-                {entry.name === "Revenue" 
+                {entry.name === "Invoice revenue"
                   ? formatRevenueFull(Number(entry.value), currency)
                   : entry.value}
               </span>

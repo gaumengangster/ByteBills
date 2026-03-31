@@ -21,6 +21,9 @@ import { InvoiceItems } from "./invoice-items"
 import { InvoicePreview } from "./invoice-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import { parseStoredDocumentDate, persistDocumentDateYmd } from "@/lib/document-date-berlin"
+import { revenueDocumentReportingFlags } from "@/lib/reporting-flags"
+import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
 
 type InvoiceFormProps = {
   userId: string
@@ -75,8 +78,8 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     clientRegistrationNumber: invoice.clientDetails.registrationNumber || "",
     clientVatNumber: invoice.clientDetails.vatNumber || "",
     invoiceNumber: invoice.invoiceNumber,
-    invoiceDate: new Date(invoice.invoiceDate),
-    dueDate: new Date(invoice.dueDate),
+    invoiceDate: parseStoredDocumentDate(invoice.invoiceDate),
+    dueDate: parseStoredDocumentDate(invoice.dueDate),
     currency: (invoice.currency as "EUR" | "USD" | "GBP" | "CZK") || "EUR",
     unitOfWork: (invoice.unitOfWork as "M/D" | "M/H" | "Kg" | "Piece") || "M/D",
     taxRate: invoice.taxRate || 20,
@@ -99,6 +102,15 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
   const taxRate = form.watch("taxRate")
 
   async function onSubmit(values: InvoiceFormValues) {
+    if (isNonEurWithFutureBusinessDate(values.currency, values.invoiceDate)) {
+      toast({
+        title: "Cannot save invoice",
+        description:
+          "For currencies other than EUR, the invoice date cannot be in the future — ECB exchange rates are not published for future days. Set the invoice date to today or earlier, or switch the document to EUR.",
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -106,7 +118,19 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
       const tax = subtotal * (values.taxRate / 100)
       const total = subtotal + tax
 
+      const eurPersist = await buildRevenueDocumentEurPersist({
+        kind: "invoice",
+        invoiceDateIso: persistDocumentDateYmd(values.invoiceDate),
+        currency: values.currency,
+        subtotal,
+        tax,
+        total,
+        items: values.items,
+      })
+
       const selectedCompany = companies.find((c) => c.id === values.companyId)
+      const invoiceDateYmd = persistDocumentDateYmd(values.invoiceDate)
+      const reporting = revenueDocumentReportingFlags(invoiceDateYmd)
 
       const invoiceData = {
         companyId: values.companyId,
@@ -134,18 +158,23 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
         },
         language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,
-        invoiceDate: values.invoiceDate.toISOString(),
-        dueDate: values.dueDate.toISOString(),
+        invoiceDate: invoiceDateYmd,
+        dueDate: persistDocumentDateYmd(values.dueDate),
         currency: values.currency,
         unitOfWork: values.unitOfWork,
         taxRate: values.taxRate,
-        items: values.items,
+        items: eurPersist.items,
         subtotal,
         tax,
         total,
+        subtotalEur: eurPersist.subtotalEur,
+        taxEur: eurPersist.taxEur,
+        totalEur: eurPersist.totalEur,
+        eurRateDate: eurPersist.eurRateDate,
         notes: values.notes || "",
         terms: values.terms || "",
         updatedAt: new Date().toISOString(),
+        ...reporting,
       }
 
       await updateDoc(doc(db, "invoices", invoiceId), invoiceData)

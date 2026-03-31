@@ -23,6 +23,9 @@ import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DocumentSettings } from "@/components/document-settings/document-settings"
+import { parseStoredDocumentDate, persistDocumentDateYmd } from "@/lib/document-date-berlin"
+import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
+import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
 
 type ReceiptFormEditProps = {
   userId: string
@@ -82,7 +85,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       clientRegistrationNumber: receipt?.clientDetails?.registrationNumber || "",
       clientVatNumber: receipt?.clientDetails?.vatNumber || "",
       receiptNumber: receipt?.receiptNumber,
-      receiptDate: new Date(receipt?.receiptDate),
+      receiptDate: receipt?.receiptDate ? parseStoredDocumentDate(receipt.receiptDate) : new Date(),
       paymentMethod: receipt?.paymentMethod,
       items: receipt?.items || [{ description: "", quantity: 1, unitPrice: 0 }],
       notes: receipt?.notes || "",
@@ -92,6 +95,15 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
+    if (isNonEurWithFutureBusinessDate(currency, values.receiptDate)) {
+      toast({
+        title: "Cannot save receipt",
+        description:
+          "For currencies other than EUR, the receipt date cannot be in the future — ECB exchange rates are not published for future days. Set the receipt date to today or earlier, or switch the document to EUR.",
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -100,8 +112,21 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       const tax = subtotal * (taxPercentage / 100)
       const total = subtotal + tax
 
+      const eurPersist = await buildRevenueDocumentEurPersist({
+        kind: "receipt",
+        receiptDateIso: persistDocumentDateYmd(values.receiptDate),
+        currency,
+        subtotal,
+        tax,
+        total,
+        items: values.items,
+      })
+
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
+
+      const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
+      const reporting = salesReceiptReportingFlags(receiptDateYmd)
 
       // Prepare updated receipt data
       const updatedReceiptData = {
@@ -130,17 +155,23 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
         },
         language: values.clientLanguage || "en",
         receiptNumber: values.receiptNumber,
-        receiptDate: values.receiptDate.toISOString(),
+        receiptDate: receiptDateYmd,
         paymentMethod: values.paymentMethod,
-        items: values.items,
+        items: eurPersist.items,
         subtotal,
         tax,
         total,
+        subtotalEur: eurPersist.subtotalEur,
+        taxEur: eurPersist.taxEur,
+        totalEur: eurPersist.totalEur,
+        eurRateDate: eurPersist.eurRateDate,
         currency,
         taxPercentage,
         notes: values.notes || "",
         invoiceReference: values.invoiceReference || "",
+        invoiceRef: receipt?.invoiceRef ?? null,
         updatedAt: new Date().toISOString(),
+        ...reporting,
       }
 
       // Update in Firestore

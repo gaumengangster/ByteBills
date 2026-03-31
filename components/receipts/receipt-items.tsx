@@ -129,7 +129,8 @@ export function ReceiptItems({ form, currency, taxPercentage, showErrors = true 
               <div className="col-span-1 text-right text-sm">
                 {formatCurrency(
                   (form.getValues(`items.${index}.quantity`) || 0) * (form.getValues(`items.${index}.unitPrice`) || 0),
-                  undefined)}
+                  { currency },
+                )}
               </div>
 
               <div className="col-span-1 flex justify-end">
@@ -154,15 +155,15 @@ export function ReceiptItems({ form, currency, taxPercentage, showErrors = true 
         <div className="space-y-2 min-w-[200px] p-4 bg-muted rounded-md">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal:</span>
-            <span className="font-medium">{formatCurrency(calculateSubtotal(), undefined)}</span>
+            <span className="font-medium">{formatCurrency(calculateSubtotal(), { currency })}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Tax ({taxPercentage}%):</span>
-            <span className="font-medium">{formatCurrency(calculateTax(), undefined)}</span>
+            <span className="font-medium">{formatCurrency(calculateTax(), { currency })}</span>
           </div>
           <div className="flex justify-between font-semibold pt-2 border-t">
             <span>Total:</span>
-            <span>{formatCurrency(calculateTotal(), undefined)}</span>
+            <span>{formatCurrency(calculateTotal(), { currency })}</span>
           </div>
         </div>
       </div>

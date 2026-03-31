@@ -167,7 +167,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Select Company</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a company" />
@@ -322,7 +322,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                     <FormItem>
                       <FormLabel>Client Name</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -337,7 +337,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       <FormItem>
                         <FormLabel>Email (optional)</FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} />
+                          <Input type="email" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -351,7 +351,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       <FormItem>
                         <FormLabel>Phone</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -366,7 +366,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                     <FormItem>
                       <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -402,7 +402,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       <FormItem>
                         <FormLabel>Registration Number</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Registration number" />
+                          <Input {...field} value={field.value ?? ""} placeholder="Registration number" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -415,7 +415,7 @@ export function ClientDetails({ form, companies, userId }: ClientDetailsProps) {
                       <FormItem>
                         <FormLabel>VAT Number</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="VAT number DE123456789" />
+                          <Input {...field} value={field.value ?? ""} placeholder="VAT number DE123456789" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

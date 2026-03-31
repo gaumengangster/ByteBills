@@ -4,7 +4,8 @@ export type TopClientRow = {
   name: string
   vatId: string
   country: string
-  documentCount: number
+  invoiceCount: number
+  receiptCount: number
   serviceDescriptions: string
   revenue: number
   averageValue: number
@@ -41,9 +42,10 @@ export function TopClientsTable({ clients }: TopClientsTableProps) {
             <TableHead className="min-w-[140px]">Name</TableHead>
             <TableHead className="min-w-[120px]">VAT ID</TableHead>
             <TableHead className="min-w-[72px]">Country</TableHead>
-            <TableHead className="text-right min-w-[90px] whitespace-nowrap">No. of documents</TableHead>
+            <TableHead className="text-right min-w-[100px] whitespace-nowrap">No. of Invoices</TableHead>
+            <TableHead className="text-right min-w-[100px] whitespace-nowrap">No. of Receipts</TableHead>
             <TableHead className="min-w-[220px] max-w-[360px]">Descriptions of services</TableHead>
-            <TableHead className="text-right min-w-[110px] whitespace-nowrap">Revenue (EUR)</TableHead>
+            <TableHead className="text-right min-w-[110px] whitespace-nowrap">Invoice revenue (EUR)</TableHead>
             <TableHead className="text-right min-w-[120px] whitespace-nowrap">Average value (EUR)</TableHead>
           </TableRow>
         </TableHeader>
@@ -53,7 +55,8 @@ export function TopClientsTable({ clients }: TopClientsTableProps) {
               <TableCell className="font-medium align-top">{client.name}</TableCell>
               <TableCell className="font-mono text-sm align-top">{client.vatId}</TableCell>
               <TableCell className="align-top">{client.country}</TableCell>
-              <TableCell className="text-right align-top tabular-nums">{client.documentCount}</TableCell>
+              <TableCell className="text-right align-top tabular-nums">{client.invoiceCount}</TableCell>
+              <TableCell className="text-right align-top tabular-nums">{client.receiptCount}</TableCell>
               <TableCell className="text-sm text-muted-foreground align-top max-w-[360px]">
                 {client.serviceDescriptions ? (
                   <span className="line-clamp-4" title={client.serviceDescriptions}>
@@ -65,7 +68,7 @@ export function TopClientsTable({ clients }: TopClientsTableProps) {
               </TableCell>
               <TableCell className="text-right align-top tabular-nums">{formatEur(client.revenue)}</TableCell>
               <TableCell className="text-right align-top tabular-nums">
-                {client.documentCount > 0 ? formatEur(client.averageValue) : "—"}
+                {client.invoiceCount > 0 ? formatEur(client.averageValue) : "—"}
               </TableCell>
             </TableRow>
           ))}

@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User profile
+    match /bytebills-users/{userId} {
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── outgoing documents ────────────────────────────────────────────────
+    match /invoices/{docId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (resource == null || resource.data.userId == request.auth.uid);
+    }
+    match /deliveryNotes/{docId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (resource == null || resource.data.userId == request.auth.uid);
+    }
+    match /proformaInvoices/{docId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (resource == null || resource.data.userId == request.auth.uid);
+    }
+    match /clients/{clientId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /receipts/{docId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+
+    // ── legacy cost collections ───────────────────────────────────────────
+    match /bills/{billId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /assets/{assetId} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /pauschalCosts/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+
+    // ── cost entities (new) ───────────────────────────────────────────────
+    match /cost_invoice/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /cost_partial_business_use/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /cost_pauschale/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /cost_afa/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+    match /cost_afa_multiyear_slice/{id} {
+      allow read, list, get, create, update, delete: if request.auth != null &&
+        (
+          (resource == null && request.resource.data.userId == request.auth.uid) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

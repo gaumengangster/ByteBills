@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { collection, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format } from "date-fns"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,17 +40,20 @@ import {
   Plus,
   Search,
   Trash2,
-  Send,
+  CloudUpload,
   Share2,
   Loader2,
 } from "lucide-react"
-import { EmailInvoiceDialog } from "@/components/invoices/email-invoice-dialog"
 import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
+import { isIssuedPdfOnDrive, uploadIssuedPdfToGoogleDrive } from "@/lib/google-drive-issued-pdf"
+import { driveDeleteOrphanWarning } from "@/lib/google-drive-delete-warning"
+import {
+  deleteGoogleDriveFile,
+  getGoogleDriveAccessToken,
+} from "@/lib/google-drive-upload-client"
 import { formatCurrency } from "@/lib/utils"
-import { fetchEurRatesForDocumentDates, type EurRatesByDocumentDate } from "@/lib/eur-rates"
-import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
 import {
   formatDocumentListDate,
   formatListEurAmount,
@@ -69,12 +71,16 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
-  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
+  const invoiceDeleteDriveWarning = useMemo(() => {
+    if (!invoiceToDelete) return null
+    const inv = invoices.find((i) => i.id === invoiceToDelete)
+    const hasLinked = !!(inv?.drivePdfFileId && typeof inv.drivePdfFileId === "string")
+    return driveDeleteOrphanWarning(hasLinked)
+  }, [invoiceToDelete, invoices])
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
-  const [eurRatesByDocDate, setEurRatesByDocDate] = useState<EurRatesByDocumentDate | null>(null)
-
+  const [uploadingDriveId, setUploadingDriveId] = useState<string | null>(null)
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/login")
@@ -107,32 +113,6 @@ export default function InvoicesPage() {
       fetchInvoices()
     }
   }, [user])
-
-  useEffect(() => {
-    if (!invoices.length) {
-      setEurRatesByDocDate({})
-      return
-    }
-    const keys = new Set<string>()
-    for (const inv of invoices) {
-      const d = getRevenueDocumentDate({
-        type: "invoices",
-        invoiceDate: inv.invoiceDate,
-        receiptDate: undefined,
-      })
-      if (!Number.isNaN(d.getTime())) {
-        keys.add(format(d, "yyyy-MM-dd"))
-      }
-    }
-    let cancelled = false
-    ;(async () => {
-      const r = await fetchEurRatesForDocumentDates([...keys])
-      if (!cancelled) setEurRatesByDocDate(r)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [invoices])
 
   useEffect(() => {
     // Apply filters
@@ -194,7 +174,18 @@ export default function InvoicesPage() {
   const handleDelete = async () => {
     if (!invoiceToDelete) return
 
+    const inv = invoices.find((i) => i.id === invoiceToDelete)
+    const token = getGoogleDriveAccessToken()
+    const fid = inv?.drivePdfFileId && typeof inv.drivePdfFileId === "string" ? inv.drivePdfFileId : null
+
     try {
+      if (fid && token) {
+        try {
+          await deleteGoogleDriveFile(fid)
+        } catch (e) {
+          console.warn("Google Drive delete:", e)
+        }
+      }
       await deleteDoc(doc(db, "invoices", invoiceToDelete))
 
       // Update local state
@@ -202,7 +193,10 @@ export default function InvoicesPage() {
 
       toast({
         title: "Invoice deleted",
-        description: "The invoice has been deleted successfully.",
+        description:
+          fid && !token
+            ? "Invoice removed. Google Drive was not connected—the PDF was not deleted in Drive."
+            : "The invoice has been deleted successfully.",
       })
     } catch (error) {
       console.error("Error deleting invoice:", error)
@@ -223,7 +217,7 @@ export default function InvoicesPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateInvoicePDF(invoice)
-      downloadPDF(pdfBlob, buildDocumentFilename(invoice))
+      downloadPDF(pdfBlob, buildDocumentFilename(invoice, "invoice"))
 
       toast({
         title: "PDF generated",
@@ -241,9 +235,48 @@ export default function InvoicesPage() {
     }
   }
 
-  const openEmailDialog = (invoice: any) => {
-    setSelectedInvoice(invoice)
-    setIsEmailDialogOpen(true)
+  const handleUploadToGoogleDrive = async (invoice: any) => {
+    if (!getGoogleDriveAccessToken()) {
+      toast({
+        title: "Connect Google Drive",
+        description: "Use Connect Google Drive in the header, then upload again.",
+        variant: "destructive",
+      })
+      return
+    }
+    setUploadingDriveId(invoice.id)
+    try {
+      const pdfBlob = await generateInvoicePDF(invoice)
+      const displayName = buildDocumentFilename(invoice, "invoice")
+      const { fileId } = await uploadIssuedPdfToGoogleDrive(pdfBlob, displayName)
+      const updatedAt = new Date().toISOString()
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        drivePdfName: displayName,
+        drivePdfFileId: fileId,
+        uploadedToDrive: true,
+        updatedAt,
+      })
+      setInvoices(
+        invoices.map((i) =>
+          i.id === invoice.id
+            ? { ...i, drivePdfName: displayName, drivePdfFileId: fileId, uploadedToDrive: true, updatedAt }
+            : i,
+        ),
+      )
+      toast({
+        title: "Uploaded to Google Drive",
+        description: "The invoice PDF was saved to your Drive folder.",
+      })
+    } catch (error) {
+      console.error("Google Drive upload:", error)
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Could not upload to Google Drive.",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingDriveId(null)
+    }
   }
 
   const openShareDialog = (invoice: any) => {
@@ -370,7 +403,7 @@ export default function InvoicesPage() {
               </TableHeader>
               <TableBody>
                 {filteredInvoices.map((invoice) => {
-                  const eurRow = listDocumentEurRow(invoice, "invoice", eurRatesByDocDate)
+                  const eurRow = listDocumentEurRow(invoice, "invoice")
                   return (
                   <TableRow key={invoice.id}>
                     <TableCell className="whitespace-nowrap font-medium tabular-nums align-top">
@@ -443,9 +476,21 @@ export default function InvoicesPage() {
                               </>
                             )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEmailDialog(invoice)}>
-                            <Send className="mr-2 h-4 w-4" />
-                            Send to Client
+                          <DropdownMenuItem
+                            onSelect={() => void handleUploadToGoogleDrive(invoice)}
+                            disabled={uploadingDriveId === invoice.id || isIssuedPdfOnDrive(invoice)}
+                          >
+                            {uploadingDriveId === invoice.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Uploading…
+                              </>
+                            ) : (
+                              <>
+                                <CloudUpload className="mr-2 h-4 w-4" />
+                                Upload to Drive
+                              </>
+                            )}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openShareDialog(invoice)}>
                             <Share2 className="mr-2 h-4 w-4" />
@@ -498,8 +543,16 @@ export default function InvoicesPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the invoice.
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                This removes the invoice and deletes the PDF from Google Drive when you are connected. This cannot be
+                undone.
+              </span>
+              {invoiceDeleteDriveWarning ? (
+                <span className="block rounded-md border border-amber-200 bg-amber-50 p-2 text-sm font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  {invoiceDeleteDriveWarning}
+                </span>
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -512,21 +565,12 @@ export default function InvoicesPage() {
       </AlertDialog>
 
       {selectedInvoice && (
-        <>
-          {user ? (<EmailInvoiceDialog
-            isOpen={isEmailDialogOpen}
-            onClose={() => setIsEmailDialogOpen(false)}
-            invoice={selectedInvoice}
-            userId={user.uid}
-          />) : (<p>Loading user data...</p>)}
-
-          <ShareInvoiceDialog
-            isOpen={isShareDialogOpen}
-            onClose={() => setIsShareDialogOpen(false)}
-            invoiceId={selectedInvoice.id}
-            invoiceNumber={selectedInvoice.invoiceNumber}
-          />
-        </>
+        <ShareInvoiceDialog
+          isOpen={isShareDialogOpen}
+          onClose={() => setIsShareDialogOpen(false)}
+          invoiceId={selectedInvoice.id}
+          invoiceNumber={selectedInvoice.invoiceNumber}
+        />
       )}
     </>
   )

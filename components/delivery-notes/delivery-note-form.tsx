@@ -23,6 +23,7 @@ import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { DocumentSettings } from "@/components/document-settings/document-settings" // Added DocumentSettings import
 import { generateNextDocumentNumber } from "@/lib/document-number"
+import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
 
 type DeliveryNoteFormProps = {
   userId?: string
@@ -128,7 +129,7 @@ export function DeliveryNoteForm({ userId, companies = [] }: DeliveryNoteFormPro
         },
         language: values.clientLanguage || "en",
         deliveryNoteNumber: values.deliveryNoteNumber,
-        deliveryDate: values.deliveryDate.toISOString(),
+        deliveryDate: persistDocumentDateYmd(values.deliveryDate),
         deliveryAddress: values.deliveryAddress || "",
         items: values.items,
         deliveryInstructions: values.deliveryInstructions || "",

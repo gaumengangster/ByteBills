@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { Badge, Download, X } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
@@ -83,7 +83,7 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
       }
 
       const pdfBlob = await generateInvoicePDF(pdfData)
-      downloadPDF(pdfBlob, buildDocumentFilename(pdfData))
+      downloadPDF(pdfBlob, buildDocumentFilename(pdfData, "invoice"))
 
       toast({ title: "PDF generated", description: "Your invoice PDF has been downloaded." })
     } catch (error) {
@@ -108,8 +108,8 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                 <h1 className="text-2xl font-bold mb-1">INVOICE</h1>
                 <div className="text-muted-foreground">
                   <div>Invoice # {invoiceData.invoiceNumber}</div>
-                  <div>Date: {invoiceData.invoiceDate ? format(new Date(invoiceData.invoiceDate), "PP") : "N/A"}</div>
-                  <div>Due: {invoiceData.dueDate ? format(new Date(invoiceData.dueDate), "PP") : "N/A"}</div>
+                  <div>Date: {invoiceData.invoiceDate ? formatDocumentDateBerlin(invoiceData.invoiceDate, "PP") : "N/A"}</div>
+                  <div>Due: {invoiceData.dueDate ? formatDocumentDateBerlin(invoiceData.dueDate, "PP") : "N/A"}</div>
                 </div>
               </div>
 

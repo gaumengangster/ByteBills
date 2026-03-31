@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { addDoc, collection } from "firebase/firestore"
+import { addDoc, collection, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,10 +24,20 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DocumentSettings } from "@/components/document-settings/document-settings" // Added import
 import { generateNextDocumentNumber } from "@/lib/document-number"
+import {
+  buildReceiptFormDefaultsFromInvoice,
+  getCurrencyAndTaxFromInvoice,
+  receiptNumberFromLinkedInvoice,
+} from "@/lib/receipt-from-invoice"
+import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
+import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
+import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
 
 type ReceiptFormProps = {
   userId: string
   companies: any[]
+  /** When set, form is filled from this invoice and `invoiceRef` is stored on save. */
+  prefillFromInvoice?: { id: string; data: Record<string, unknown> } | null
 }
 
 // Create a schema for receipt validation
@@ -60,7 +70,7 @@ const receiptSchema = z.object({
 
 type ReceiptFormValues = z.infer<typeof receiptSchema>
 
-export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
+export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: ReceiptFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
@@ -85,16 +95,50 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
   })
 
   useEffect(() => {
-    if (userId) {
-      generateNextDocumentNumber(userId, "receipts")
-        .then((num) => {
-          form.setValue("receiptNumber", num)
-        })
+    if (!userId || prefillFromInvoice?.data) return
+    generateNextDocumentNumber(userId, "receipts").then((num) => {
+      form.setValue("receiptNumber", num)
+    })
+  }, [userId, prefillFromInvoice])
+
+  useEffect(() => {
+    if (!userId || !prefillFromInvoice?.data) return
+    let cancelled = false
+    ;(async () => {
+      const inv = prefillFromInvoice.data
+      const fromInvoice = receiptNumberFromLinkedInvoice(inv.invoiceNumber)
+      const num =
+        fromInvoice || (await generateNextDocumentNumber(userId, "receipts"))
+      if (cancelled) return
+      const base = buildReceiptFormDefaultsFromInvoice(inv)
+      const { currency: c, taxPercentage: t } = getCurrencyAndTaxFromInvoice(inv)
+      setCurrency(c)
+      setTaxPercentage(t)
+      form.reset({
+        ...base,
+        receiptNumber: num,
+        receiptDate: new Date(),
+        paymentMethod: "card",
+      } as ReceiptFormValues)
+    })()
+    return () => {
+      cancelled = true
     }
-  }, [userId])
+    // form.reset is stable from react-hook-form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, prefillFromInvoice])
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
+    if (isNonEurWithFutureBusinessDate(currency, values.receiptDate)) {
+      toast({
+        title: "Cannot save receipt",
+        description:
+          "For currencies other than EUR, the receipt date cannot be in the future — ECB exchange rates are not published for future days. Set the receipt date to today or earlier, or switch the document to EUR.",
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -103,8 +147,22 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
       const tax = subtotal * (taxPercentage / 100)
       const total = subtotal + tax
 
+      const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
+
+      const eurPersist = await buildRevenueDocumentEurPersist({
+        kind: "receipt",
+        receiptDateIso: receiptDateYmd,
+        currency,
+        subtotal,
+        tax,
+        total,
+        items: values.items,
+      })
+
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
+
+      const reporting = salesReceiptReportingFlags(receiptDateYmd)
 
       // Prepare receipt data
       const receiptData = {
@@ -134,27 +192,52 @@ export function ReceiptForm({ userId, companies }: ReceiptFormProps) {
         },
         language: values.clientLanguage || "en",
         receiptNumber: values.receiptNumber,
-        receiptDate: values.receiptDate.toISOString(),
+        receiptDate: receiptDateYmd,
         paymentMethod: values.paymentMethod,
-        items: values.items,
+        items: eurPersist.items,
         subtotal,
         tax,
         total,
+        subtotalEur: eurPersist.subtotalEur,
+        taxEur: eurPersist.taxEur,
+        totalEur: eurPersist.totalEur,
+        eurRateDate: eurPersist.eurRateDate,
         currency,
         taxPercentage,
         notes: values.notes || "",
         invoiceReference: values.invoiceReference || "",
+        invoiceRef: prefillFromInvoice?.id ?? null,
         status: "completed",
+        uploadedToDrive: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        ...reporting,
       }
 
       // Save to Firestore
       const docRef = await addDoc(collection(db, "receipts"), receiptData)
 
+      let invoiceMarkedPaid = false
+      if (prefillFromInvoice?.id) {
+        try {
+          await updateDoc(doc(db, "invoices", prefillFromInvoice.id), {
+            status: "paid",
+            updatedAt: new Date().toISOString(),
+          })
+          invoiceMarkedPaid = true
+        } catch (e) {
+          console.error("Mark invoice paid:", e)
+        }
+      }
+
       toast({
-        title: "Success",
-        description: `Receipt ${values.receiptNumber} has been created successfully.`,
+        title: "Receipt created",
+        description: prefillFromInvoice?.id
+          ? invoiceMarkedPaid
+            ? `Receipt ${values.receiptNumber} was saved and the linked invoice was marked as paid.`
+            : `Receipt ${values.receiptNumber} was saved, but the linked invoice could not be marked as paid. Please update the invoice manually.`
+          : `Receipt ${values.receiptNumber} has been created successfully.`,
+        variant: prefillFromInvoice?.id && !invoiceMarkedPaid ? "destructive" : undefined,
       })
 
       // Navigate to receipt view

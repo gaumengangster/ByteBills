@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { collection, query, where, getDocs, orderBy, doc, deleteDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { format } from "date-fns"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +31,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast"
-import { Download, Edit, Eye, Receipt, MoreHorizontal, Plus, Search, Trash2, Loader2 } from "lucide-react"
+import {
+  CloudUpload,
+  Download,
+  Edit,
+  Eye,
+  Receipt,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Trash2,
+  Loader2,
+} from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
+import { isIssuedPdfOnDrive, uploadIssuedPdfToGoogleDrive } from "@/lib/google-drive-issued-pdf"
+import { driveDeleteOrphanWarning } from "@/lib/google-drive-delete-warning"
+import {
+  deleteGoogleDriveFile,
+  getGoogleDriveAccessToken,
+} from "@/lib/google-drive-upload-client"
 
 export default function ReceiptsPage() {
   const { user, loading } = useAuth()
@@ -45,7 +62,14 @@ export default function ReceiptsPage() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [receiptToDelete, setReceiptToDelete] = useState<string | null>(null)
+  const receiptDeleteDriveWarning = useMemo(() => {
+    if (!receiptToDelete) return null
+    const rec = receipts.find((r) => r.id === receiptToDelete)
+    const hasLinked = !!(rec?.drivePdfFileId && typeof rec.drivePdfFileId === "string")
+    return driveDeleteOrphanWarning(hasLinked)
+  }, [receiptToDelete, receipts])
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
+  const [uploadingDriveId, setUploadingDriveId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -112,15 +136,28 @@ export default function ReceiptsPage() {
   const handleDelete = async () => {
     if (!receiptToDelete) return
 
+    const rec = receipts.find((r) => r.id === receiptToDelete)
+    const token = getGoogleDriveAccessToken()
+    const fid = rec?.drivePdfFileId && typeof rec.drivePdfFileId === "string" ? rec.drivePdfFileId : null
+
     try {
+      if (fid && token) {
+        try {
+          await deleteGoogleDriveFile(fid)
+        } catch (e) {
+          console.warn("Google Drive delete:", e)
+        }
+      }
       await deleteDoc(doc(db, "receipts", receiptToDelete))
 
-      // Update local state
       setReceipts(receipts.filter((receipt) => receipt.id !== receiptToDelete))
 
       toast({
         title: "Receipt deleted",
-        description: "The receipt has been deleted successfully.",
+        description:
+          fid && !token
+            ? "Receipt removed. Google Drive was not connected—the PDF was not deleted in Drive."
+            : "The receipt has been deleted successfully.",
       })
     } catch (error) {
       console.error("Error deleting receipt:", error)
@@ -141,7 +178,7 @@ export default function ReceiptsPage() {
     try {
       // Generate PDF directly using our new approach
       const pdfBlob = await generateReceiptPDF(receipt)
-      downloadReceiptPDF(pdfBlob, buildDocumentFilename(receipt))
+      downloadReceiptPDF(pdfBlob, buildDocumentFilename(receipt, "receipt"))
 
       toast({
         title: "PDF generated",
@@ -156,6 +193,50 @@ export default function ReceiptsPage() {
       })
     } finally {
       setIsDownloading(null)
+    }
+  }
+
+  const handleUploadToGoogleDrive = async (receipt: any) => {
+    if (!getGoogleDriveAccessToken()) {
+      toast({
+        title: "Connect Google Drive",
+        description: "Use Connect Google Drive in the header, then upload again.",
+        variant: "destructive",
+      })
+      return
+    }
+    setUploadingDriveId(receipt.id)
+    try {
+      const pdfBlob = await generateReceiptPDF(receipt)
+      const displayName = buildDocumentFilename(receipt, "receipt")
+      const { fileId } = await uploadIssuedPdfToGoogleDrive(pdfBlob, displayName)
+      const updatedAt = new Date().toISOString()
+      await updateDoc(doc(db, "receipts", receipt.id), {
+        drivePdfName: displayName,
+        drivePdfFileId: fileId,
+        uploadedToDrive: true,
+        updatedAt,
+      })
+      setReceipts(
+        receipts.map((r) =>
+          r.id === receipt.id
+            ? { ...r, drivePdfName: displayName, drivePdfFileId: fileId, uploadedToDrive: true, updatedAt }
+            : r,
+        ),
+      )
+      toast({
+        title: "Uploaded to Google Drive",
+        description: "The receipt PDF was saved to your Drive folder.",
+      })
+    } catch (error) {
+      console.error("Google Drive upload:", error)
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Could not upload to Google Drive.",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingDriveId(null)
     }
   }
 
@@ -287,7 +368,7 @@ export default function ReceiptsPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{format(new Date(receipt.receiptDate), "MMM d, yyyy")}</TableCell>
+                    <TableCell>{formatDocumentDateBerlin(receipt.receiptDate, "MMM d, yyyy")}</TableCell>
                     <TableCell>{getPaymentMethodText(receipt.paymentMethod)}</TableCell>
                     <TableCell>{receipt.invoiceReference || "-"}</TableCell>
                     <TableCell>{formatCurrency(receipt.total)}</TableCell>
@@ -321,6 +402,22 @@ export default function ReceiptsPage() {
                               </>
                             )}
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => void handleUploadToGoogleDrive(receipt)}
+                            disabled={uploadingDriveId === receipt.id || isIssuedPdfOnDrive(receipt)}
+                          >
+                            {uploadingDriveId === receipt.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Uploading…
+                              </>
+                            ) : (
+                              <>
+                                <CloudUpload className="mr-2 h-4 w-4" />
+                                Upload to Drive
+                              </>
+                            )}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => router.push(`/receipts/${receipt.id}/edit`)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
@@ -345,8 +442,16 @@ export default function ReceiptsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the receipt.
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                This removes the receipt and deletes the PDF from Google Drive when you are connected. This cannot be
+                undone.
+              </span>
+              {receiptDeleteDriveWarning ? (
+                <span className="block rounded-md border border-amber-200 bg-amber-50 p-2 text-sm font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  {receiptDeleteDriveWarning}
+                </span>
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

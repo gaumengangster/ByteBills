@@ -23,6 +23,9 @@ import { InvoicePreview } from "./invoice-preview"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { generateNextDocumentNumber } from "@/lib/document-number"
+import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
+import { revenueDocumentReportingFlags } from "@/lib/reporting-flags"
+import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
 
 type InvoiceFormProps = {
   userId: string
@@ -106,6 +109,15 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
   // Handle form submission
   async function onSubmit(values: InvoiceFormValues) {
+    if (isNonEurWithFutureBusinessDate(values.currency, values.invoiceDate)) {
+      toast({
+        title: "Cannot save invoice",
+        description:
+          "For currencies other than EUR, the invoice date cannot be in the future — ECB exchange rates are not published for future days. Set the invoice date to today or earlier, or switch the document to EUR.",
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -114,8 +126,21 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
       const tax = subtotal * (values.taxRate / 100)
       const total = subtotal + tax
 
+      const eurPersist = await buildRevenueDocumentEurPersist({
+        kind: "invoice",
+        invoiceDateIso: persistDocumentDateYmd(values.invoiceDate),
+        currency: values.currency,
+        subtotal,
+        tax,
+        total,
+        items: values.items,
+      })
+
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
+
+      const invoiceDateYmd = persistDocumentDateYmd(values.invoiceDate)
+      const reporting = revenueDocumentReportingFlags(invoiceDateYmd)
 
       // Prepare invoice data
       const invoiceData = {
@@ -145,20 +170,26 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         },
         language: values.clientLanguage || "en",
         invoiceNumber: values.invoiceNumber,
-        invoiceDate: values.invoiceDate.toISOString(),
-        dueDate: values.dueDate.toISOString(),
+        invoiceDate: invoiceDateYmd,
+        dueDate: persistDocumentDateYmd(values.dueDate),
         currency: values.currency,
         unitOfWork: values.unitOfWork,
         taxRate: values.taxRate,
-        items: values.items,
+        items: eurPersist.items,
         subtotal,
         tax,
         total,
+        subtotalEur: eurPersist.subtotalEur,
+        taxEur: eurPersist.taxEur,
+        totalEur: eurPersist.totalEur,
+        eurRateDate: eurPersist.eurRateDate,
         notes: values.notes || "",
         terms: values.terms || "",
         status: "pending", // pending, paid, overdue, cancelled
+        uploadedToDrive: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        ...reporting,
       }
 
       // Save to Firestore

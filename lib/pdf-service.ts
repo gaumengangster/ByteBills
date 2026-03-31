@@ -1,6 +1,5 @@
 import jsPDF from "jspdf"
-import { format } from "date-fns"
-import { de as dateFnsDe } from "date-fns/locale"
+import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { getTranslations } from "./translations"
 import { registerFonts } from "./pdf-fonts"
 import { shouldShowReverseChargeNotice } from "./reverse-charge"
@@ -8,7 +7,6 @@ import { shouldShowReverseChargeNotice } from "./reverse-charge"
 export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   const lang = invoice.language || "en"
   const t = getTranslations(lang)
-  const dateLocale = lang === "de" ? { locale: dateFnsDe } : undefined
 
   const pdf = new jsPDF("p", "mm", "a4")
   await registerFonts(pdf)
@@ -32,9 +30,9 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.setFont("Roboto", "normal")
   pdf.text(`${t.invoiceNumber}: ${invoice.invoiceNumber}`, margin, y)
   y += 5
-  pdf.text(`${t.date}: ${format(new Date(invoice.invoiceDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
+  pdf.text(`${t.date}: ${formatDocumentDateBerlin(invoice.invoiceDate, "MMMM d, yyyy")}`, margin, y)
   y += 5
-  pdf.text(`${t.dueDate}: ${format(new Date(invoice.dueDate), "MMMM d, yyyy", dateLocale)}`, margin, y)
+  pdf.text(`${t.dueDate}: ${formatDocumentDateBerlin(invoice.dueDate, "MMMM d, yyyy")}`, margin, y)
 /*   y += 5
   pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y) */
   y += 15
