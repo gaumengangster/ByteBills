@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings, CheckCircle } from "lucide-react"
+import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings, CheckCircle, Mail } from "lucide-react"
 
 export default function Home() {
   return (
@@ -17,9 +17,14 @@ export default function Home() {
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 animate-fade-in">
             Welcome to <span className="text-primary">ByteBills</span>
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-2 animate-fade-in">
             The all-in-one solution for creating professional invoices, receipts, delivery notes, and tracking your
             business performance.
+          </p>
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in">
+            Specialised for the <span className="font-medium text-foreground">German market</span> — helps you prepare
+            your quarterly ELSTER VAT returns and annual EÜR reports. Built for{" "}
+            <span className="font-medium text-foreground">freelancers and entrepreneurs</span>.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 animate-fade-in">
             <Button asChild size="lg" className="px-8">
@@ -156,6 +161,20 @@ export default function Home() {
           </Button>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="py-8 border-t bg-background">
+        <div className="container mx-auto px-4 flex flex-col items-center gap-2 text-sm text-muted-foreground">
+          <p>Need help or found a bug? Reach out:</p>
+          <a
+            href="mailto:office@nikolad.uk"
+            className="flex items-center gap-1.5 text-primary hover:underline font-medium"
+          >
+            <Mail className="h-4 w-4" />
+            office@nikolad.uk
+          </a>
+        </div>
+      </footer>
     </main>
   )
 }
