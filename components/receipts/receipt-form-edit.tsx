@@ -53,7 +53,7 @@ const receiptSchema = z.object({
     .array(
       z.object({
         description: z.string().min(1, "Description is required"),
-        quantity: z.number().min(1, "Quantity must be at least 1"),
+        quantity: z.number().min(0.001, "Quantity must be greater than 0"),
         unitPrice: z.number().min(0, "Unit price must be at least 0"),
       }),
     )

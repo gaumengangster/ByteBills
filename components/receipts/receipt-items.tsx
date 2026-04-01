@@ -81,11 +81,12 @@ export function ReceiptItems({ form, currency, taxPercentage, showErrors = true 
                       <FormControl>
                         <Input
                           type="number"
-                          min="1"
+                          min="0.001"
+                          step="0.01"
                           className="text-center"
                           {...field}
                           onChange={(e) => {
-                            const value = Number.parseInt(e.target.value)
+                            const value = Number.parseFloat(e.target.value)
                             field.onChange(isNaN(value) ? 0 : value)
                           }}
                         />
