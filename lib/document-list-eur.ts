@@ -34,13 +34,19 @@ export function formatListEurAmount(amount: number | null): string {
 
 /**
  * EUR column from persisted `totalEur` on invoices/receipts (saved at document creation).
- * ECB rate column on list UIs can show "—" — FX was applied when the document was saved.
+ * FX column shows `exchangeRateToEur` (units of doc currency per 1 EUR) when set.
  */
 export function listDocumentEurRow(
-  doc: { totalEur?: unknown },
+  doc: { totalEur?: unknown; currency?: unknown; exchangeRateToEur?: unknown },
   _kind: "invoice" | "receipt",
 ): { eur: number | null; rateLabel: string } {
   const v = doc.totalEur
   const eur = typeof v === "number" && Number.isFinite(v) ? v : null
+  const cur = normalizeListCurrency(typeof doc.currency === "string" ? doc.currency : undefined)
+  const ex = doc.exchangeRateToEur
+  const rate = typeof ex === "number" && Number.isFinite(ex) && ex > 0 ? ex : null
+  if (cur !== "EUR" && rate != null) {
+    return { eur, rateLabel: `1 EUR = ${rate.toFixed(4)} ${cur}` }
+  }
   return { eur, rateLabel: "—" }
 }

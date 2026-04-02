@@ -114,9 +114,9 @@ const baseFields = {
   amountVatEur: z.number().optional(),
   /** Gross amount in EUR */
   amountGrossEur: z.number().optional(),
-  /** ECB rate used for conversion: units of original currency per 1 EUR */
+  /** Reference rate used for conversion: units of original currency per 1 EUR */
   eurRate: z.number().optional(),
-  /** yyyy-MM-dd of the ECB rate used (= document business date) */
+  /** yyyy-MM-dd of the rate used (= document business date) */
   eurRateDate: z.string().optional(),
   expenseDate: z.string(),
   createdAt: z.string(),

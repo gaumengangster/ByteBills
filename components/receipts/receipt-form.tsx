@@ -31,7 +31,7 @@ import {
 } from "@/lib/receipt-from-invoice"
 import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
+import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
 
 type ReceiptFormProps = {
   userId: string
@@ -130,15 +130,6 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
-    if (isNonEurWithFutureBusinessDate(currency, values.receiptDate)) {
-      toast({
-        title: "Cannot save receipt",
-        description:
-          "For currencies other than EUR, the receipt date cannot be in the future — ECB exchange rates are not published for future days. Set the receipt date to today or earlier, or switch the document to EUR.",
-      })
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
@@ -150,6 +141,8 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
       const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
 
       const eurPersist = await buildRevenueDocumentEurPersist({
+        db,
+        userId,
         kind: "receipt",
         receiptDateIso: receiptDateYmd,
         currency,
@@ -202,6 +195,9 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
         taxEur: eurPersist.taxEur,
         totalEur: eurPersist.totalEur,
         eurRateDate: eurPersist.eurRateDate,
+        ...(currency !== "EUR" && eurPersist.exchangeRateToEur != null
+          ? { exchangeRateToEur: eurPersist.exchangeRateToEur }
+          : {}),
         currency,
         taxPercentage,
         notes: values.notes || "",
@@ -243,6 +239,14 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
       // Navigate to receipt view
       router.push(`/receipts/${docRef.id}`)
     } catch (error) {
+      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
+        toast({
+          title: "Missing exchange rate",
+          description:
+            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
+        })
+        return
+      }
       console.error("Error creating receipt:", error)
       toast({
         title: "Error",

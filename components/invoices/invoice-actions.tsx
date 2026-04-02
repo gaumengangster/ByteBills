@@ -49,9 +49,11 @@ type InvoiceActionsProps = {
   onStatusChange: (newStatus: string) => Promise<void>
   /** Called after a successful Google Drive upload so the detail view can refetch. */
   onInvoiceRefresh?: () => void | Promise<void>
+  /** Live company list from settings — fills missing street address on PDFs when invoice snapshot is stale. */
+  companies?: any[]
 }
 
-export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh }: InvoiceActionsProps) {
+export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh, companies }: InvoiceActionsProps) {
   const router = useRouter()
   const [isDownloading, setIsDownloading] = useState(false)
   const [isUploadingDrive, setIsUploadingDrive] = useState(false)
@@ -70,7 +72,7 @@ export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh }: In
     setIsDownloading(true)
 
     try {
-      const pdfBlob = await generateInvoicePDF(invoice)
+      const pdfBlob = await generateInvoicePDF(invoice, companies)
       downloadPDF(pdfBlob, buildDocumentFilename(invoice, "invoice"))
 
       toast({
@@ -100,7 +102,7 @@ export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh }: In
     }
     setIsUploadingDrive(true)
     try {
-      const pdfBlob = await generateInvoicePDF(invoice)
+      const pdfBlob = await generateInvoicePDF(invoice, companies)
       const displayName = buildDocumentFilename(invoice, "invoice")
       const { fileId } = await uploadIssuedPdfToGoogleDrive(pdfBlob, displayName)
       await updateDoc(doc(db, "invoices", invoice.id), {

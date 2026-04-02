@@ -44,7 +44,7 @@ export type ManualExpenseKind = "home_office" | "driving"
 /** When `manualExpenseKind` is `home_office`. */
 export type HomeOfficeCategory = "flat_rate" | "office_supplies" | "utilities" | "communication" | "other"
 
-/** Optional persisted ECB conversions at save time (`bills`). Reporting prefers these when set. */
+/** Optional persisted FX conversions at save time (`bills`). Reporting prefers these when set. */
 export type CostBillEurFields = {
   /** Net in document currency → EUR (same as `netEur`). */
   subtotalEur: number | null
@@ -55,7 +55,7 @@ export type CostBillEurFields = {
   netEur: number | null
   /** Gross EUR (duplicate of totalEur). */
   grossEur: number | null
-  /** yyyy-MM-dd — ECB row used for conversion */
+  /** yyyy-MM-dd — rate row used for conversion */
   eurRateDate: string | null
 }
 
@@ -67,12 +67,14 @@ export type CostBillDriveFields = {
   driveReceiptFileId: string | null
 }
 
-/** ECB snapshot at save for issued `invoices` / `sales receipts` (rate date = invoice / receipt date). */
+/** FX snapshot at save for issued `invoices` / `sales receipts` (rate date = invoice / receipt date). */
 export type IssuedRevenueDocumentEurFields = {
   subtotalEur: number
   taxEur: number
   totalEur: number
   eurRateDate: string | null
+  /** Units of document currency per 1 EUR (same rate for subtotal and VAT EUR). */
+  exchangeRateToEur?: number
 }
 
 /** Optional fields on Firestore `invoices` / `receipts` after uploading the PDF to Google Drive. */

@@ -41,7 +41,21 @@ import { aggregateEurAnnualSummary, type EurAnnualSummary } from "@/lib/eur-annu
 import { fetchPauschalCostsForUser, fetchAssetsForUser } from "@/lib/fetch-pauschal-assets"
 import { sumBillsVatAmountEur } from "@/lib/report-eur-rates"
 import { fetchBillsInDateRange, fetchBillsForVatPeriod, fetchBillsForEuerYear } from "@/lib/report-fetch-bills"
-import { invoiceTaxEurFromDoc } from "@/lib/revenue-document-eur"
+import {
+  invoiceTaxEurForReport,
+  invoiceTotalEurForReport,
+} from "@/lib/revenue-document-eur"
+import {
+  invoiceDateYmdBoundsForVatReportingYear,
+  revenueInvoiceMatchesCalendarYear,
+  revenueInvoiceMatchesVatCalendarQuarter,
+} from "@/lib/reporting-flags"
+import {
+  collectBmfYearsFromInvoiceDoc,
+  collectBmfYearsFromReceiptDoc,
+  enrichRevenueDocsWithBmfReportEur,
+  fetchMergedBmfRatesByMonth,
+} from "@/lib/bmf-rates-report"
 import {
   Table,
   TableBody,
@@ -224,6 +238,10 @@ export default function ReportsPage() {
           }
         }
 
+        /** EÜR / tax-period calendar year for issued invoices (Leistungsdatum year); used with {@link revenueInvoiceMatchesCalendarYear}. */
+        const reportCalendarYear =
+          timeframe === "thisYear" || timeframe === "lastYear" ? getYear(endDate) : null
+
         // Format dates for Firestore queries
         const startDateStr = startDate.toISOString()
         const endDateStr = endDate.toISOString()
@@ -255,15 +273,37 @@ export default function ReportsPage() {
         let previousPeriodDocuments = 0
         const previousSnapshotRows: { docType: string; data: Record<string, unknown> }[] = []
 
-        // Fetch current period data (revenue documents use invoice/receipt date)
+        // Fetch current period data. Quarter view: wide `invoiceDate` + VAT quarter filter. Year view (EÜR):
+        // wide window + `taxDate` calendar year filter so income matches `quartal` / EÜR year.
         for (const docType of documentTypes) {
-          const q = buildReportRangeQuery(docType, user.uid, startDateStr, endDateStr)
+          let rangeStart = startDateStr
+          let rangeEnd = endDateStr
+          if (quarterMatch && (docType === "invoices" || docType === "proformaInvoices")) {
+            const y = parseInt(quarterMatch[1], 10)
+            const b = invoiceDateYmdBoundsForVatReportingYear(y)
+            rangeStart = b.from
+            rangeEnd = b.to
+          } else if (reportCalendarYear != null && (docType === "invoices" || docType === "proformaInvoices")) {
+            const b = invoiceDateYmdBoundsForVatReportingYear(reportCalendarYear)
+            rangeStart = b.from
+            rangeEnd = b.to
+          }
+
+          const q = buildReportRangeQuery(docType, user.uid, rangeStart, rangeEnd)
 
           const snapshot = await getDocs(q)
-          documentCounts[docType] = snapshot.size
+          let included = 0
 
           snapshot.forEach((doc) => {
             const data = doc.data()
+            if (quarterMatch && (docType === "invoices" || docType === "proformaInvoices")) {
+              const y = parseInt(quarterMatch[1], 10)
+              const qn = parseInt(quarterMatch[2], 10) as 1 | 2 | 3 | 4
+              if (!revenueInvoiceMatchesVatCalendarQuarter(data as Record<string, unknown>, y, qn)) return
+            } else if (reportCalendarYear != null && (docType === "invoices" || docType === "proformaInvoices")) {
+              if (!revenueInvoiceMatchesCalendarYear(data as Record<string, unknown>, reportCalendarYear)) return
+            }
+            included++
             // Spread first so `id` / `type` always reflect the Firestore collection (not overwritten by `data.type` etc.)
             allDocuments.push({
               ...data,
@@ -271,11 +311,11 @@ export default function ReportsPage() {
               type: docType,
             })
 
-            // Add client to unique set
             if (data.clientDetails?.name) {
               clientSet.add(data.clientDetails.name)
             }
           })
+          documentCounts[docType] = included
         }
 
         const billsInRange = await fetchBillsInDateRange(user.uid, startDate, endDate)
@@ -300,14 +340,31 @@ export default function ReportsPage() {
 
         // Fetch previous period data for comparison
         for (const docType of documentTypes) {
-          const q = buildReportRangeQuery(docType, user.uid, previousStartDateStr, previousEndDateStr)
+          let prevRangeStart = previousStartDateStr
+          let prevRangeEnd = previousEndDateStr
+          if (prevQuarterMatch && (docType === "invoices" || docType === "proformaInvoices")) {
+            const py = parseInt(prevQuarterMatch[1], 10) - 1
+            const b = invoiceDateYmdBoundsForVatReportingYear(py)
+            prevRangeStart = b.from
+            prevRangeEnd = b.to
+          }
+
+          const q = buildReportRangeQuery(docType, user.uid, prevRangeStart, prevRangeEnd)
 
           const snapshot = await getDocs(q)
-          previousPeriodDocuments += snapshot.size
+          let prevIncluded = 0
 
           snapshot.forEach((doc) => {
-            previousSnapshotRows.push({ docType, data: doc.data() as Record<string, unknown> })
+            const data = doc.data() as Record<string, unknown>
+            if (prevQuarterMatch && (docType === "invoices" || docType === "proformaInvoices")) {
+              const py = parseInt(prevQuarterMatch[1], 10) - 1
+              const qn = parseInt(prevQuarterMatch[2], 10) as 1 | 2 | 3 | 4
+              if (!revenueInvoiceMatchesVatCalendarQuarter(data, py, qn)) return
+            }
+            prevIncluded++
+            previousSnapshotRows.push({ docType, data })
           })
+          previousPeriodDocuments += prevIncluded
         }
 
         // Previous period VAT: use vatYear-based fetch when on a quarter view
@@ -321,26 +378,59 @@ export default function ReportsPage() {
         }
         const previousBillsInRange = previousVatBills
 
-        let totalRevenue = 0
+        const bmfYears = new Set<number>()
         for (const doc of allDocuments) {
+          if (doc.type === "invoices") {
+            const y = collectBmfYearsFromInvoiceDoc(doc as Record<string, unknown>)
+            if (y != null) bmfYears.add(y)
+          } else if (doc.type === "receipts") {
+            const y = collectBmfYearsFromReceiptDoc(doc as Record<string, unknown>)
+            if (y != null) bmfYears.add(y)
+          }
+        }
+        for (const row of previousSnapshotRows) {
+          const syn = { ...row.data, type: row.docType } as Record<string, unknown>
+          if (row.docType === "invoices") {
+            const y = collectBmfYearsFromInvoiceDoc(syn)
+            if (y != null) bmfYears.add(y)
+          } else if (row.docType === "receipts") {
+            const y = collectBmfYearsFromReceiptDoc(syn)
+            if (y != null) bmfYears.add(y)
+          }
+        }
+
+        let bmfMerged: Record<string, Record<string, number>> = {}
+        try {
+          bmfMerged = await fetchMergedBmfRatesByMonth(db, user.uid, bmfYears)
+        } catch (e) {
+          console.error("BMF rates for reports:", e)
+        }
+
+        const documentsForReport = enrichRevenueDocsWithBmfReportEur(
+          allDocuments as (Record<string, unknown> & { type?: string })[],
+          Object.keys(bmfMerged).length > 0 ? bmfMerged : null,
+        )
+
+        const previousEnriched = enrichRevenueDocsWithBmfReportEur(
+          previousSnapshotRows.map((row) => ({ ...row.data, type: row.docType })) as (Record<
+            string,
+            unknown
+          > & { type?: string })[],
+          Object.keys(bmfMerged).length > 0 ? bmfMerged : null,
+        )
+
+        let totalRevenue = 0
+        for (const doc of documentsForReport) {
           if (doc.type !== "invoices") continue
-          const d = doc as Record<string, unknown>
-          if (typeof d.totalEur !== "number" || !Number.isFinite(d.totalEur)) continue
-          totalRevenue += d.totalEur
+          totalRevenue += invoiceTotalEurForReport(doc as Record<string, unknown>)
         }
 
         let previousPeriodRevenue = 0
         let previousPeriodVat = 0
-        for (const row of previousSnapshotRows) {
-          const { docType, data } = row
-          const synthetic = { ...data, type: docType } as Record<string, unknown>
-          if (docType === "invoices") {
-            const te = synthetic.totalEur
-            if (typeof te === "number" && Number.isFinite(te)) {
-              previousPeriodRevenue += te
-            }
-            previousPeriodVat += invoiceTaxEurFromDoc(synthetic)
-          }
+        for (const doc of previousEnriched) {
+          if (doc.type !== "invoices") continue
+          previousPeriodRevenue += invoiceTotalEurForReport(doc as Record<string, unknown>)
+          previousPeriodVat += invoiceTaxEurForReport(doc as Record<string, unknown>)
         }
 
         // Calculate percentage changes (100% only when prior period was 0 but current is not)
@@ -353,10 +443,10 @@ export default function ReportsPage() {
 
         const documentsChange =
           previousPeriodDocuments === 0
-            ? allDocuments.length === 0
+            ? documentsForReport.length === 0
               ? 0
               : 100
-            : ((allDocuments.length - previousPeriodDocuments) / previousPeriodDocuments) * 100
+            : ((documentsForReport.length - previousPeriodDocuments) / previousPeriodDocuments) * 100
 
         // Average invoice amount (EUR): same basis as Total Revenue (invoices only)
         const invoicesCount = documentCounts.invoices || 0
@@ -375,10 +465,14 @@ export default function ReportsPage() {
 
         const clientData: Record<string, ClientAgg> = {}
 
-        allDocuments.forEach((doc) => {
+        documentsForReport.forEach((doc) => {
           if (doc.type !== "invoices") return
 
-          const clientName = doc.clientDetails?.name || "Unknown Client"
+          const inv = doc as Record<string, unknown> & {
+            clientDetails?: { name?: string; vatNumber?: string; country?: string; address?: string }
+            items?: unknown[]
+          }
+          const clientName = inv.clientDetails?.name || "Unknown Client"
 
           if (!clientData[clientName]) {
             clientData[clientName] = {
@@ -392,42 +486,42 @@ export default function ReportsPage() {
             }
           }
 
-          const row = clientData[clientName]
-          const vat = String(doc.clientDetails?.vatNumber ?? "").trim()
-          if (vat && !row.vatId) {
-            row.vatId = vat
+          const agg = clientData[clientName]
+          const vat = String(inv.clientDetails?.vatNumber ?? "").trim()
+          if (vat && !agg.vatId) {
+            agg.vatId = vat
           }
 
-          const cc = resolveClientCountryCode(doc.clientDetails)
-          if (cc && !row.country) {
-            row.country = cc
+          const cc = resolveClientCountryCode(
+            inv.clientDetails as Parameters<typeof resolveClientCountryCode>[0],
+          )
+          if (cc && !agg.country) {
+            agg.country = cc
           }
 
-          if (doc.items && Array.isArray(doc.items)) {
-            for (const item of doc.items) {
+          if (inv.items && Array.isArray(inv.items)) {
+            for (const item of inv.items) {
               const desc =
                 typeof (item as { description?: string })?.description === "string"
                   ? (item as { description: string }).description.trim()
                   : ""
               if (desc) {
-                row.serviceDescriptions.add(desc)
+                agg.serviceDescriptions.add(desc)
               }
             }
           }
 
-          row.invoiceCount += 1
-          const te = (doc as Record<string, unknown>).totalEur
-          if (typeof te === "number" && Number.isFinite(te)) {
-            row.revenue += te
-          }
+          agg.invoiceCount += 1
+          agg.revenue += invoiceTotalEurForReport(inv)
         })
 
-        allDocuments.forEach((doc) => {
+        documentsForReport.forEach((doc) => {
           if (doc.type !== "receipts") return
-          const clientName = doc.clientDetails?.name || "Unknown Client"
-          const row = clientData[clientName]
-          if (!row) return
-          row.receiptCount += 1
+          const rec = doc as Record<string, unknown> & { clientDetails?: { name?: string } }
+          const clientName = rec.clientDetails?.name || "Unknown Client"
+          const agg = clientData[clientName]
+          if (!agg) return
+          agg.receiptCount += 1
         })
 
         const topClients = Object.values(clientData)
@@ -446,9 +540,9 @@ export default function ReportsPage() {
 
         // VAT received: `invoices` collection only (taxEur); receipts / proforma / delivery notes excluded
         let totalVatReceived = 0
-        for (const doc of allDocuments) {
+        for (const doc of documentsForReport) {
           if (doc.type !== "invoices") continue
-          totalVatReceived += invoiceTaxEurFromDoc(doc as Record<string, unknown>)
+          totalVatReceived += invoiceTaxEurForReport(doc as Record<string, unknown>)
         }
 
         const totalVatSpent = sumBillsVatAmountEur(vatBills)
@@ -472,7 +566,9 @@ export default function ReportsPage() {
               : 100
             : ((totalVatSpentSafe - previousVatSpentSafe) / previousVatSpentSafe) * 100
 
-        const elster = quarterMatch ? aggregateElsterQuarterForDocuments(allDocuments, vatBills) : null
+        const elster = quarterMatch
+          ? aggregateElsterQuarterForDocuments(documentsForReport, vatBills)
+          : null
 
         let eur: EurAnnualSummary | null = null
         if (timeframe === "thisYear" || timeframe === "lastYear") {
@@ -481,7 +577,7 @@ export default function ReportsPage() {
             fetchAssetsForUser(user.uid),
           ])
           const calendarYear = getYear(endDate)
-          eur = aggregateEurAnnualSummary(allDocuments, euerBills, {
+          eur = aggregateEurAnnualSummary(documentsForReport, euerBills, {
             calendarYear,
             pauschalDocs,
             assetDocs,
@@ -492,7 +588,7 @@ export default function ReportsPage() {
         setReportData({
           summary: {
             totalRevenue,
-            totalDocuments: allDocuments.length,
+            totalDocuments: documentsForReport.length,
             totalClients: clientSet.size,
             averageValue,
             invoicesCount: documentCounts.invoices || 0,
@@ -508,7 +604,7 @@ export default function ReportsPage() {
             previousPeriodVatSpent: previousVatSpentSafe,
             vatSpentChange: Number.isFinite(vatSpentChange) ? vatSpentChange : 100,
           },
-          documents: allDocuments,
+          documents: documentsForReport,
           clients: topClients,
           elster,
           eur,
@@ -899,10 +995,10 @@ export default function ReportsPage() {
                       <CardTitle>Revenue Over Time</CardTitle>
                       <CardDescription>
                         {timeframe === "last30Days"
-                          ? "Daily invoice revenue in EUR (totalEur per invoice). By invoice date."
-                          : "Monthly invoice revenue in EUR (totalEur per invoice). By invoice date."}
+                          ? "Daily invoice revenue in EUR (totalEur per invoice). By Leistungsdatum (`taxDate`)."
+                          : "Monthly invoice revenue in EUR (totalEur per invoice). By Leistungsdatum (`taxDate`)."}
                         {QUARTER_TF.test(timeframe)
-                          ? " Calendar quarter (full quarter range for the selected year)."
+                          ? " Quarter filter matches VAT calendar quarter from `taxDate` / persisted `quartal`."
                           : ""}
                         {timeframe === "thisYear" || timeframe === "lastYear"
                           ? " Twelve months (Jan–Dec); months with no revenue show €0."
@@ -962,7 +1058,8 @@ export default function ReportsPage() {
                     <CardHeader>
                       <CardTitle>Documents Over Time</CardTitle>
                       <CardDescription>
-                        Documents per month by business date (invoice, receipt, delivery, or proforma date)
+                        Documents per month: invoices by `taxDate`; proforma by invoice date; receipts and delivery notes
+                        by receipt/delivery date
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="h-[350px] min-w-0 overflow-hidden">

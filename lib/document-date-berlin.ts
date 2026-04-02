@@ -46,7 +46,7 @@ export function parseStoredDocumentDate(value: unknown): Date {
   return coerceToDate(value)
 }
 
-/** ECB / chart date key — Berlin calendar yyyy-MM-dd. */
+/** Document / chart date key — Berlin calendar yyyy-MM-dd. */
 export function documentDateKeyBerlin(value: unknown): string | null {
   const d = coerceToDate(value)
   if (Number.isNaN(d.getTime())) {

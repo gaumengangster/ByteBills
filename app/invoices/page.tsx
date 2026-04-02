@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { collection, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, getDoc, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import {
   AlertDialog,
@@ -81,11 +81,22 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
   const [uploadingDriveId, setUploadingDriveId] = useState<string | null>(null)
+  const [companies, setCompanies] = useState<any[]>([])
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/login")
     }
   }, [user, loading, router])
+
+  useEffect(() => {
+    if (!user) return
+    getDoc(doc(db, "bytebills-users", user.uid))
+      .then((snap) => {
+        if (snap.exists()) setCompanies(snap.data().companies ?? [])
+      })
+      .catch(() => setCompanies([]))
+  }, [user])
 
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -216,7 +227,7 @@ export default function InvoicesPage() {
 
     try {
       // Generate PDF directly using our new approach
-      const pdfBlob = await generateInvoicePDF(invoice)
+      const pdfBlob = await generateInvoicePDF(invoice, companies)
       downloadPDF(pdfBlob, buildDocumentFilename(invoice, "invoice"))
 
       toast({
@@ -246,7 +257,7 @@ export default function InvoicesPage() {
     }
     setUploadingDriveId(invoice.id)
     try {
-      const pdfBlob = await generateInvoicePDF(invoice)
+      const pdfBlob = await generateInvoicePDF(invoice, companies)
       const displayName = buildDocumentFilename(invoice, "invoice")
       const { fileId } = await uploadIssuedPdfToGoogleDrive(pdfBlob, displayName)
       const updatedAt = new Date().toISOString()
@@ -391,10 +402,13 @@ export default function InvoicesPage() {
                   <TableHead className="min-w-[10rem] max-w-[16rem]">Client</TableHead>
                   <TableHead className="whitespace-nowrap">Date created</TableHead>
                   <TableHead className="whitespace-nowrap">Invoice date</TableHead>
+                  <TableHead className="whitespace-nowrap" title="Leistungsdatum (supply date for VAT)">
+                    VAT date
+                  </TableHead>
                   <TableHead className="whitespace-nowrap">Due date</TableHead>
                   <TableHead>Amount</TableHead>
                   {hasNonEurInView ? (
-                    <TableHead className="text-right whitespace-nowrap">ECB rate</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">FX rate</TableHead>
                   ) : null}
                   <TableHead className="text-right whitespace-nowrap">EUR</TableHead>
                   <TableHead>Status</TableHead>
@@ -430,6 +444,9 @@ export default function InvoicesPage() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
                       {formatDocumentListDate(invoice.invoiceDate)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                      {formatDocumentListDate(invoice.taxDate)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
                       {formatDocumentListDate(invoice.dueDate)}

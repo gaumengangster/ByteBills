@@ -3,7 +3,7 @@
  * Uses persisted EUR fields: invoices (`subtotalEur`, `taxEur`), bills (`vatAmountEur` when Vorsteuer applies).
  */
 
-import { invoiceNetIncomeEurFromDoc, invoiceTaxEurFromDoc } from "@/lib/revenue-document-eur"
+import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 import { resolveClientCountryCode } from "@/lib/client-country"
 import { billContributesInputVat } from "@/lib/report-eur-rates"
 
@@ -59,8 +59,8 @@ export function aggregateElsterQuarterForDocuments(
     const t = doc.type
     if (t === "invoices") {
       const row = doc as Record<string, unknown>
-      const taxEur = invoiceTaxEurFromDoc(row)
-      const net = invoiceNetIncomeEurFromDoc(row)
+      const taxEur = invoiceTaxEurForReport(row)
+      const net = invoiceNetIncomeEurForReport(row)
       receivedVatInvoicesEur += taxEur
       if (isTaxFreeInvoice(doc as { tax: unknown; taxRate?: unknown })) {
         taxFreeNetInvoicesEur += net

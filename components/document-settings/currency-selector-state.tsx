@@ -37,6 +37,7 @@ const CURRENCIES = [
     // 🌍 Common International Currencies
     { code: "USD", symbol: "$", name: "US Dollar" },
     { code: "EUR", symbol: "€", name: "Euro" },
+    { code: "CZK", symbol: "Kč", name: "Czech Koruna" },
     { code: "GBP", symbol: "£", name: "British Pound" },
     { code: "JPY", symbol: "¥", name: "Japanese Yen" },
     { code: "AUD", symbol: "A$", name: "Australian Dollar" },

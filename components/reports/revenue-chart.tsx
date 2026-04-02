@@ -19,7 +19,7 @@ import {
   formatRevenueFull,
 } from "@/lib/format-chart-axis"
 import { getRevenueDocumentDate } from "@/lib/revenue-document-date"
-import { revenueTotalEurFromDoc } from "@/lib/revenue-document-eur"
+import { invoiceTotalEurForReport } from "@/lib/revenue-document-eur"
 
 import { getDisplayCurrency } from "@/lib/env-public"
 
@@ -38,7 +38,9 @@ export function RevenueChart({ documents, timeframe, startDate, endDate }: Reven
   const revenueDocumentsForCurrency = useMemo(() => {
     return documents.filter((doc) => {
       if (doc.type !== "invoices") return false
-      if (typeof doc.totalEur !== "number" || !Number.isFinite(doc.totalEur)) return false
+      const row = doc as Record<string, unknown>
+      const te = invoiceTotalEurForReport(row)
+      if (!Number.isFinite(te)) return false
       const d = getRevenueDocumentDate(doc)
       return !Number.isNaN(d.getTime())
     })
@@ -66,7 +68,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate }: Reven
         })
         
         const dayRevenue = dayDocs.reduce(
-          (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
+          (sum, doc) => sum + invoiceTotalEurForReport(doc as Record<string, unknown>),
           0,
         )
         
@@ -98,7 +100,7 @@ export function RevenueChart({ documents, timeframe, startDate, endDate }: Reven
         })
         
         const monthRevenue = monthDocs.reduce(
-          (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
+          (sum, doc) => sum + invoiceTotalEurForReport(doc as Record<string, unknown>),
           0,
         )
         

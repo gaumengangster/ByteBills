@@ -1,12 +1,16 @@
 /**
- * ECB conversion for issued invoices and receipts: rate date = invoice date / receipt date
- * (same as `eurRatesForInvoiceOrReceiptDoc` / list EUR column).
+ * EUR amounts for issued invoices and receipts: one rate row per document.
+ * Invoices use Leistungsdatum (`taxDate`) only; receipts use receipt date.
+ *
+ * Rates: Firestore BMF month import only (`buildFxRateRowFromFirestore`).
  */
 
-import { startOfDay } from "date-fns"
+import type { Firestore } from "firebase/firestore"
 import { documentDateKeyBerlin } from "@/lib/document-date-berlin"
-import { convertAmountToEur, fetchEurRatesForDocumentDates } from "@/lib/eur-rates"
-import { eurRatesForInvoiceOrReceiptDoc } from "@/lib/report-eur-rates"
+import { convertAmountToEur, type EurReferenceRates } from "@/lib/eur-rates"
+import { buildFxRateRowFromFirestore } from "@/lib/firestore-fx-rate-row"
+
+export const REVENUE_FX_RATE_MISSING = "REVENUE_FX_RATE_MISSING"
 
 export type RevenueLineItem = {
   description: string
@@ -14,26 +18,26 @@ export type RevenueLineItem = {
   unitPrice: number
 }
 
-/**
- * ECB rates exist only for past and current calendar days. Non-EUR documents need a rate when saving EUR amounts.
- */
-export function isNonEurWithFutureBusinessDate(currency: string, businessDate: Date): boolean {
-  const c = currency.trim().toUpperCase()
-  if (c === "EUR") return false
-  return startOfDay(businessDate).getTime() > startOfDay(new Date()).getTime()
-}
-
 function roundMoneyEur(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+function isYmd(s: string | undefined | null): s is string {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.trim())
+}
+
+/** Berlin calendar yyyy-MM-dd for FX: invoice uses `taxDate` only; receipt uses receipt date. */
 export function calendarDateKeyFromRevenueDoc(
   kind: "invoice" | "receipt",
-  invoiceDateIso: string | undefined,
+  _invoiceDateIso: string | undefined,
   receiptDateIso: string | undefined,
+  invoiceTaxDateIso?: string | null,
 ): string | null {
-  const raw = kind === "invoice" ? invoiceDateIso : receiptDateIso
-  return documentDateKeyBerlin(raw)
+  if (kind === "invoice") {
+    if (!isYmd(invoiceTaxDateIso)) return null
+    return documentDateKeyBerlin(invoiceTaxDateIso.trim())
+  }
+  return documentDateKeyBerlin(receiptDateIso)
 }
 
 export type RevenueDocumentEurPersist = {
@@ -41,15 +45,64 @@ export type RevenueDocumentEurPersist = {
   taxEur: number
   totalEur: number
   eurRateDate: string | null
+  /** Units of document currency per 1 EUR; same value used for net, VAT, and gross EUR. Null when currency is EUR. */
+  exchangeRateToEur: number | null
   items: Record<string, unknown>[]
 }
 
-/**
- * Fetches ECB row for the document date and returns EUR totals + line-level EUR (unit price & line total).
- */
-export async function buildRevenueDocumentEurPersist(params: {
+function unitsPerEurForCurrency(currency: string, rates: EurReferenceRates): number | null {
+  const c = (currency.trim() || "EUR").toUpperCase()
+  if (c === "EUR") return null
+  const u = rates[c]
+  if (u == null || !Number.isFinite(u) || u <= 0) return null
+  return u
+}
+
+export async function resolveReferenceRatesForRevenueDocument(params: {
+  db: Firestore
+  userId: string
   kind: "invoice" | "receipt"
   invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
+  receiptDateIso?: string
+  currency: string
+}): Promise<{ rates: EurReferenceRates; monthKey: string | null }> {
+  const dateKey = calendarDateKeyFromRevenueDoc(
+    params.kind,
+    params.kind === "invoice" ? params.invoiceDateIso : undefined,
+    params.kind === "receipt" ? params.receiptDateIso : undefined,
+    params.kind === "invoice" ? params.invoiceTaxDateIso : undefined,
+  )
+  const monthKey = dateKey && dateKey.length >= 7 ? dateKey.slice(0, 7) : null
+  const cur = (params.currency.trim() || "EUR").toUpperCase()
+
+  const rates = await buildFxRateRowFromFirestore({
+    db: params.db,
+    userId: params.userId,
+    monthKey,
+  })
+
+  if (cur === "EUR") {
+    return { rates, monthKey }
+  }
+
+  const u = rates[cur]
+  if (typeof u !== "number" || !Number.isFinite(u) || u <= 0) {
+    throw new Error(REVENUE_FX_RATE_MISSING)
+  }
+
+  return { rates, monthKey }
+}
+
+/**
+ * Computes persisted EUR fields using Firestore BMF import for the document month.
+ */
+export async function buildRevenueDocumentEurPersist(params: {
+  db: Firestore
+  userId: string
+  kind: "invoice" | "receipt"
+  invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
   receiptDateIso?: string
   currency: string
   subtotal: number
@@ -59,21 +112,22 @@ export async function buildRevenueDocumentEurPersist(params: {
 }): Promise<RevenueDocumentEurPersist> {
   const dateKey = calendarDateKeyFromRevenueDoc(
     params.kind,
-    params.invoiceDateIso,
-    params.receiptDateIso,
+    params.kind === "invoice" ? params.invoiceDateIso : undefined,
+    params.kind === "receipt" ? params.receiptDateIso : undefined,
+    params.kind === "invoice" ? params.invoiceTaxDateIso : undefined,
   )
-  const eurRatesByDocDate = await fetchEurRatesForDocumentDates(dateKey ? [dateKey] : [])
 
-  const stub: Record<string, unknown> =
-    params.kind === "invoice"
-      ? { type: "invoices", invoiceDate: params.invoiceDateIso, receiptDate: undefined }
-      : { type: "receipts", invoiceDate: undefined, receiptDate: params.receiptDateIso }
+  const { rates } = await resolveReferenceRatesForRevenueDocument({
+    db: params.db,
+    userId: params.userId,
+    kind: params.kind,
+    invoiceDateIso: params.invoiceDateIso,
+    invoiceTaxDateIso: params.invoiceTaxDateIso,
+    receiptDateIso: params.receiptDateIso,
+    currency: params.currency,
+  })
 
-  const rates = eurRatesForInvoiceOrReceiptDoc(
-    stub as { type?: string; invoiceDate?: unknown; receiptDate?: unknown },
-    eurRatesByDocDate,
-  )
-  const cur = params.currency.trim() || "EUR"
+  const cur = (params.currency.trim() || "EUR").toUpperCase()
 
   const toEur = (amount: number) => roundMoneyEur(convertAmountToEur(amount, cur, rates))
 
@@ -93,6 +147,7 @@ export async function buildRevenueDocumentEurPersist(params: {
     taxEur: toEur(params.tax),
     totalEur: toEur(params.total),
     eurRateDate: dateKey,
+    exchangeRateToEur: unitsPerEurForCurrency(cur, rates),
     items,
   }
 }
@@ -131,4 +186,42 @@ export function invoiceTaxEurFromDoc(doc: Record<string, unknown>): number {
 /** Reporting: persisted EUR only (`totalEur` on invoices/receipts). */
 export function revenueTotalEurFromDoc(doc: Record<string, unknown>): number {
   return eurField(doc.totalEur)
+}
+
+/** Prefer `reportTaxEur` when the reports page enriched the doc with BMF monthly rates. */
+export function invoiceTaxEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportTaxEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  return invoiceTaxEurFromDoc(doc)
+}
+
+export function invoiceNetIncomeEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportSubtotalEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  return invoiceNetIncomeEurFromDoc(doc)
+}
+
+export function invoiceTotalEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportTotalEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  return revenueTotalEurFromDoc(doc)
+}
+
+export function receiptTaxEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportTaxEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  return invoiceTaxEurFromDoc(doc)
+}
+
+export function receiptSubtotalEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportSubtotalEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  const s = doc.subtotalEur
+  return typeof s === "number" && Number.isFinite(s) ? s : 0
+}
+
+export function receiptTotalEurForReport(doc: Record<string, unknown>): number {
+  const r = doc.reportTotalEur
+  if (typeof r === "number" && Number.isFinite(r)) return r
+  return revenueTotalEurFromDoc(doc)
 }

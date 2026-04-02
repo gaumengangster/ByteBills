@@ -11,7 +11,7 @@ import {
   formatCurrencyAxisCompact,
   formatRevenueFull,
 } from "@/lib/format-chart-axis"
-import { revenueTotalEurFromDoc } from "@/lib/revenue-document-eur"
+import { invoiceTotalEurForReport } from "@/lib/revenue-document-eur"
 
 import { getDisplayCurrency } from "@/lib/env-public"
 
@@ -35,7 +35,8 @@ export function MonthlyComparisonChart({
   const revenueDocumentsForCurrency = useMemo(() => {
     return documents.filter((doc) => {
       if (doc.type !== "invoices") return false
-      if (typeof doc.totalEur !== "number" || !Number.isFinite(doc.totalEur)) return false
+      const te = invoiceTotalEurForReport(doc as Record<string, unknown>)
+      if (!Number.isFinite(te)) return false
       const d = getRevenueDocumentDate(doc)
       return !Number.isNaN(d.getTime())
     })
@@ -68,7 +69,7 @@ export function MonthlyComparisonChart({
       
       const documentCount = monthDocs.length
       const revenue = monthRevenueDocs.reduce(
-        (sum, doc) => sum + revenueTotalEurFromDoc(doc as Record<string, unknown>),
+        (sum, doc) => sum + invoiceTotalEurForReport(doc as Record<string, unknown>),
         0,
       )
       

@@ -7,6 +7,7 @@ type TranslationKeys = {
   deliveryNoteNumber: string
   date: string
   dueDate: string
+  taxDate: string
   invoiceReference: string
   orderReference: string
   paymentMethod: string
@@ -59,6 +60,7 @@ const en: TranslationKeys = {
   deliveryNoteNumber: "Delivery Note #",
   date: "Date",
   dueDate: "Due Date",
+  taxDate: "Tax date (Leistungsdatum):",
   invoiceReference: "Invoice Reference",
   orderReference: "Order Reference",
   paymentMethod: "Payment Method",
@@ -111,6 +113,7 @@ const de: TranslationKeys = {
   deliveryNoteNumber: "Lieferscheinnr.",
   date: "Datum",
   dueDate: "Fälligkeitsdatum",
+  taxDate: "Steuerdatum (Leistungsdatum):",
   invoiceReference: "Rechnungsreferenz",
   orderReference: "Bestellreferenz",
   paymentMethod: "Zahlungsart",

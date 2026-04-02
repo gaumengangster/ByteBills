@@ -43,6 +43,10 @@ import type { ExtractedBillData } from "@/lib/bill-types"
 import { getGoogleDriveAccessToken, uploadFileToGoogleDrive } from "@/lib/google-drive-upload-client"
 import { buildCostAusgabeUploadedFilename } from "@/lib/document-filename"
 import { fetchNextCostSequenceNumber } from "@/lib/cost-sequence"
+import {
+  resolveReferenceRatesForCostExpenseDate,
+  unitsPerEurForCurrencyFromRow,
+} from "@/lib/cost-reference-rates"
 import { CostFormField, CostFormSection } from "@/components/costs/cost-item-form"
 import {
   Calendar,
@@ -576,7 +580,7 @@ export function AddCostWizard({
       if (ex.subtotal != null) setInvNet(String(ex.subtotal))
       if (ex.vatAmount != null) setInvVat(String(ex.vatAmount))
       if (ex.total != null) setInvGross(String(ex.total))
-      // auto-set currency and trigger ECB rate fetch when not EUR
+      // auto-set currency and resolve reference rate when not EUR
       if (extractedCurrency) {
         console.log("[applyExtraction] calling setInvCurrency →", extractedCurrency)
         setInvCurrency(extractedCurrency)
@@ -666,78 +670,104 @@ export function AddCostWizard({
   /** @deprecated kept for upload-step re-extract button */
   const runExtract = runExtractFromSelected
 
-  /** Fetch ECB rate for a given date + foreign currency and store on state. */
-  const fetchInvEurRate = useCallback(async (date: string, currency: string) => {
-    if (currency === "EUR" || !date) {
-      setInvEurRate(null)
-      setInvEurRateDate(null)
-      return
-    }
-    setFetchingEurRate(true)
-    try {
-      const res = await fetch("/api/eur-rates/by-dates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates: [date] }),
-      })
-      const data = (await res.json()) as { rates: Record<string, Record<string, number>> }
-      const rate = data.rates?.[date]?.[currency.toUpperCase()]
-      if (rate && Number.isFinite(rate)) {
-        setInvEurRate(rate)
-        setInvEurRateDate(date)
-      } else {
+  /** BMF monthly row from Firestore for the expense month; if missing, no foreign rate (same as invoices). */
+  const fetchInvEurRate = useCallback(
+    async (date: string, currency: string) => {
+      if (currency === "EUR" || !date) {
         setInvEurRate(null)
         setInvEurRateDate(null)
+        return
       }
-    } catch {
-      setInvEurRate(null)
-    } finally {
-      setFetchingEurRate(false)
-    }
-  }, [])
+      setFetchingEurRate(true)
+      try {
+        const { rates } = await resolveReferenceRatesForCostExpenseDate({
+          db,
+          userId,
+          expenseDateYmd: date,
+          currency,
+        })
+        const rate = unitsPerEurForCurrencyFromRow(rates, currency)
+        if (rate != null) {
+          setInvEurRate(rate)
+          setInvEurRateDate(date)
+        } else {
+          setInvEurRate(null)
+          setInvEurRateDate(null)
+        }
+      } catch {
+        setInvEurRate(null)
+      } finally {
+        setFetchingEurRate(false)
+      }
+    },
+    [userId],
+  )
 
-  /** Fetch ECB rate for cost_partial_business_use */
-  const fetchPartEurRate = useCallback(async (date: string, currency: string) => {
-    if (currency === "EUR" || !date) { setPartEurRate(null); setPartEurRateDate(null); return }
-    setFetchingPartEurRate(true)
-    try {
-      const res = await fetch("/api/eur-rates/by-dates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates: [date] }),
-      })
-      const data = (await res.json()) as { rates: Record<string, Record<string, number>> }
-      const rate = data.rates?.[date]?.[currency.toUpperCase()]
-      if (rate && Number.isFinite(rate)) { setPartEurRate(rate); setPartEurRateDate(date) }
-      else { setPartEurRate(null); setPartEurRateDate(null) }
-    } catch { setPartEurRate(null) }
-    finally { setFetchingPartEurRate(false) }
-  }, [])
+  const fetchPartEurRate = useCallback(
+    async (date: string, currency: string) => {
+      if (currency === "EUR" || !date) {
+        setPartEurRate(null)
+        setPartEurRateDate(null)
+        return
+      }
+      setFetchingPartEurRate(true)
+      try {
+        const { rates } = await resolveReferenceRatesForCostExpenseDate({
+          db,
+          userId,
+          expenseDateYmd: date,
+          currency,
+        })
+        const rate = unitsPerEurForCurrencyFromRow(rates, currency)
+        if (rate != null) {
+          setPartEurRate(rate)
+          setPartEurRateDate(date)
+        } else {
+          setPartEurRate(null)
+          setPartEurRateDate(null)
+        }
+      } catch {
+        setPartEurRate(null)
+      } finally {
+        setFetchingPartEurRate(false)
+      }
+    },
+    [userId],
+  )
 
-  /** Fetch ECB rate for cost_afa */
-  const fetchAfaEurRate = useCallback(async (date: string, currency: string) => {
-    if (currency === "EUR" || !date) { setAfaEurRate(null); setAfaEurRateDate(null); return }
-    setFetchingAfaEurRate(true)
-    try {
-      const res = await fetch("/api/eur-rates/by-dates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates: [date] }),
-      })
-      const data = (await res.json()) as { rates: Record<string, Record<string, number>> }
-      const rate = data.rates?.[date]?.[currency.toUpperCase()]
-      if (rate && Number.isFinite(rate)) { setAfaEurRate(rate); setAfaEurRateDate(date) }
-      else { setAfaEurRate(null); setAfaEurRateDate(null) }
-    } catch { setAfaEurRate(null) }
-    finally { setFetchingAfaEurRate(false) }
-  }, [])
+  const fetchAfaEurRate = useCallback(
+    async (date: string, currency: string) => {
+      if (currency === "EUR" || !date) {
+        setAfaEurRate(null)
+        setAfaEurRateDate(null)
+        return
+      }
+      setFetchingAfaEurRate(true)
+      try {
+        const { rates } = await resolveReferenceRatesForCostExpenseDate({
+          db,
+          userId,
+          expenseDateYmd: date,
+          currency,
+        })
+        const rate = unitsPerEurForCurrencyFromRow(rates, currency)
+        if (rate != null) {
+          setAfaEurRate(rate)
+          setAfaEurRateDate(date)
+        } else {
+          setAfaEurRate(null)
+          setAfaEurRateDate(null)
+        }
+      } catch {
+        setAfaEurRate(null)
+      } finally {
+        setFetchingAfaEurRate(false)
+      }
+    },
+    [userId],
+  )
 
-  // DEBUG: trace invCurrency state changes
-  useEffect(() => {
-    console.log("[cost-wizard] invCurrency state is now:", invCurrency)
-  }, [invCurrency])
-
-  // Auto-fetch ECB rate when entering amounts step with a foreign currency
+  // Auto-resolve reference rate when entering amounts step with a foreign currency
   useEffect(() => {
     if (costType === "cost_invoice" && currentStepKey === "amounts" && invCurrency !== "EUR") {
       void fetchInvEurRate(invDate, invCurrency)
@@ -1542,11 +1572,11 @@ export function AddCostWizard({
             {invCurrency !== "EUR" && (
               <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm space-y-1">
                 {fetchingEurRate ? (
-                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching ECB rate…</span>
+                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Resolving reference rate…</span>
                 ) : invEurRate ? (
                   <>
                     <p className="text-muted-foreground">
-                      ECB rate on {invEurRateDate}: 1 EUR = {invEurRate.toFixed(4)} {invCurrency}
+                      Reference rate on {invEurRateDate}: 1 EUR = {invEurRate.toFixed(4)} {invCurrency}
                     </p>
                     {parseNum(invNet) != null && (
                       <p className="font-medium">
@@ -1557,7 +1587,7 @@ export function AddCostWizard({
                   </>
                 ) : (
                   <span className="text-muted-foreground flex items-center gap-1.5">
-                    ECB rate unavailable for {invDate} —
+                    No reference rate for {invDate} —
                     <button type="button" className="underline" onClick={() => void fetchInvEurRate(invDate, invCurrency)}>retry</button>
                   </span>
                 )}
@@ -1681,10 +1711,10 @@ export function AddCostWizard({
             {partCurrency !== "EUR" && (
               <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm space-y-1">
                 {fetchingPartEurRate ? (
-                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching ECB rate…</span>
+                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Resolving reference rate…</span>
                 ) : partEurRate ? (
                   <>
-                    <p className="text-muted-foreground">ECB rate on {partEurRateDate}: 1 EUR = {partEurRate.toFixed(4)} {partCurrency}</p>
+                    <p className="text-muted-foreground">Reference rate on {partEurRateDate}: 1 EUR = {partEurRate.toFixed(4)} {partCurrency}</p>
                     {parseNum(partNet) != null && (
                       <p className="font-medium">
                         ≈ €{(parseNum(partNet)! / partEurRate).toFixed(2)} net
@@ -1694,7 +1724,7 @@ export function AddCostWizard({
                   </>
                 ) : (
                   <span className="text-muted-foreground flex items-center gap-1.5">
-                    ECB rate unavailable for {partDate} —
+                    No reference rate for {partDate} —
                     <button type="button" className="underline" onClick={() => void fetchPartEurRate(partDate, partCurrency)}>retry</button>
                   </span>
                 )}
@@ -2075,10 +2105,10 @@ export function AddCostWizard({
             {afaCurrency !== "EUR" && (
               <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm space-y-1">
                 {fetchingAfaEurRate ? (
-                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Fetching ECB rate…</span>
+                  <span className="flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Resolving reference rate…</span>
                 ) : afaEurRate ? (
                   <>
-                    <p className="text-muted-foreground">ECB rate on {afaEurRateDate}: 1 EUR = {afaEurRate.toFixed(4)} {afaCurrency}</p>
+                    <p className="text-muted-foreground">Reference rate on {afaEurRateDate}: 1 EUR = {afaEurRate.toFixed(4)} {afaCurrency}</p>
                     {parseNum(afaNet) != null && (
                       <p className="font-medium">
                         ≈ €{(parseNum(afaNet)! / afaEurRate).toFixed(2)} net
@@ -2088,7 +2118,7 @@ export function AddCostWizard({
                   </>
                 ) : (
                   <span className="text-muted-foreground flex items-center gap-1.5">
-                    ECB rate unavailable for {afaPurchaseDate} —
+                    No reference rate for {afaPurchaseDate} —
                     <button type="button" className="underline" onClick={() => void fetchAfaEurRate(afaPurchaseDate, afaCurrency)}>retry</button>
                   </span>
                 )}
@@ -2204,7 +2234,7 @@ export function AddCostWizard({
                       <>
                         <Row label="Net (EUR)" value={`€ ${(parseNum(invNet)! / invEurRate).toFixed(2)}`} />
                         <Row label="Gross (EUR)" value={parseNum(invGross) != null ? `€ ${(parseNum(invGross)! / invEurRate).toFixed(2)}` : "—"} />
-                        <Row label="ECB rate" value={`1 EUR = ${invEurRate.toFixed(4)} ${invCurrency} (${invEurRateDate})`} />
+                        <Row label="Reference rate" value={`1 EUR = ${invEurRate.toFixed(4)} ${invCurrency} (${invEurRateDate})`} />
                       </>
                     )}
                   </>
@@ -2229,10 +2259,18 @@ export function AddCostWizard({
                   <>
                     <Row label={`Net (${partCurrency})`} value={partNet ? `${partCurrency} ${partNet}` : "—"} />
                     <Row label={`VAT (${partCurrency})`} value={partVat ? `${partCurrency} ${partVat}` : "—"} />
+                    <Row label={`Gross (${partCurrency})`} value={partGross ? `${partCurrency} ${partGross}` : "—"} />
                     {partEurRate && parseNum(partNet) != null && (
                       <>
                         <Row label="Net (EUR)" value={`€ ${(parseNum(partNet)! / partEurRate).toFixed(2)}`} />
-                        <Row label="ECB rate" value={`1 EUR = ${partEurRate.toFixed(4)} ${partCurrency}`} />
+                        <Row
+                          label="Gross (EUR)"
+                          value={parseNum(partGross) != null ? `€ ${(parseNum(partGross)! / partEurRate).toFixed(2)}` : "—"}
+                        />
+                        <Row
+                          label="Reference rate"
+                          value={`1 EUR = ${partEurRate.toFixed(4)} ${partCurrency}${partEurRateDate ? ` (${partEurRateDate})` : ""}`}
+                        />
                       </>
                     )}
                   </>
@@ -2240,6 +2278,7 @@ export function AddCostWizard({
                   <>
                     <Row label="Net" value={partNet ? `€ ${partNet}` : "—"} />
                     <Row label="VAT" value={partVat ? `€ ${partVat}` : "—"} />
+                    <Row label="Gross" value={partGross ? `€ ${partGross}` : "—"} />
                   </>
                 )}
                 <Row label="Business share" value={`${partBizPct} %`} />
@@ -2269,7 +2308,7 @@ export function AddCostWizard({
                     {afaEurRate && parseNum(afaNet) != null && (
                       <>
                         <Row label="Net (EUR)" value={`€ ${(parseNum(afaNet)! / afaEurRate).toFixed(2)}`} />
-                        <Row label="ECB rate" value={`1 EUR = ${afaEurRate.toFixed(4)} ${afaCurrency}`} />
+                        <Row label="Reference rate" value={`1 EUR = ${afaEurRate.toFixed(4)} ${afaCurrency}`} />
                       </>
                     )}
                   </>

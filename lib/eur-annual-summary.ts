@@ -2,11 +2,14 @@
  * EÜR-oriented annual totals (German income/expense statement hints).
  * Uses persisted EUR fields only: invoices (`subtotalEur`, `taxEur`), bills (`subtotalEur` / `netEur`, `vatAmountEur`),
  * plus optional Pauschal assets / AfA lines from `aggregateEuerYearlyExtra`.
+ *
+ * When `options.calendarYear` is set, **invoice** income/VAT lines count only if `taxDate` falls in that calendar year.
  */
 
 import { aggregateEuerYearlyExtra, type EuerYearlyExtra } from "@/lib/eur-euer-yearly"
+import { revenueInvoiceMatchesCalendarYear } from "@/lib/reporting-flags"
 import { sumBillsVatAmountEur } from "@/lib/report-eur-rates"
-import { invoiceNetIncomeEurFromDoc, invoiceTaxEurFromDoc } from "@/lib/revenue-document-eur"
+import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 
 export type EurAnnualSummary = {
   /** Z.9 — sum of net sales (invoices subtotal only) in EUR */
@@ -46,11 +49,14 @@ export function aggregateEurAnnualSummary(
   let incomeNetEur = 0
   let outputVatEur = 0
 
+  const euerInvoiceYear = options?.calendarYear
+
   for (const doc of allDocuments) {
     if (doc.type === "invoices") {
       const d = doc as Record<string, unknown>
-      incomeNetEur += invoiceNetIncomeEurFromDoc(d)
-      outputVatEur += invoiceTaxEurFromDoc(d)
+      if (euerInvoiceYear != null && !revenueInvoiceMatchesCalendarYear(d, euerInvoiceYear)) continue
+      incomeNetEur += invoiceNetIncomeEurForReport(d)
+      outputVatEur += invoiceTaxEurForReport(d)
     }
   }
 

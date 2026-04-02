@@ -1,7 +1,9 @@
 /**
  * German reporting hints persisted on every cost/revenue entity:
  * Vorsteuer quarter vs EÜR year-end vs payment-proof-only, plus calendar quarter (`quartal`).
- * Year is taken from document dates / `costYear` elsewhere — not duplicated here.
+ * Issued invoices store `euerYear` and `quartal` from Leistungsdatum (`taxDate`). On save, an empty VAT date is
+ * written as `taxDate` = invoice date; reporting / EUR / charts read `taxDate` only (no `invoiceDate` fallback).
+ * Year is taken from document dates / `costYear` elsewhere for costs.
  *
  * Logic (summary):
  * - Client invoice: VAT quarter + EÜR; not proof-only.
@@ -63,6 +65,56 @@ export function revenueDocumentReportingFlags(documentDateYmd: string): EntityRe
     isPaymentProofOnly: false,
     quartal: quartalFromYmd(documentDateYmd),
   }
+}
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+
+/** Stored Leistungsdatum only — valid `taxDate` yyyy-MM-dd (always set on save). */
+export function revenueInvoiceReportingYmd(data: Record<string, unknown>): string | null {
+  const taxRaw = data.taxDate
+  if (typeof taxRaw === "string" && YMD.test(taxRaw.trim())) {
+    return taxRaw.trim().slice(0, 10)
+  }
+  return null
+}
+
+/**
+ * Widen stored `invoiceDate` query bounds so invoices whose Leistungsdatum (`taxDate`) falls in another
+ * quarter/year are still loaded; then filter with {@link revenueInvoiceMatchesVatCalendarQuarter} or
+ * {@link revenueInvoiceMatchesCalendarYear}.
+ */
+export function invoiceDateYmdBoundsForVatReportingYear(reportingYear: number): { from: string; to: string } {
+  return { from: `${reportingYear - 1}-01-01`, to: `${reportingYear + 1}-12-31` }
+}
+
+/**
+ * Calendar year of {@link revenueInvoiceReportingYmd} (EÜR / VAT period year for issued invoices).
+ */
+export function revenueInvoiceReportingYear(data: Record<string, unknown>): number | null {
+  const ymd = revenueInvoiceReportingYmd(data)
+  if (!ymd) return null
+  return quartalAndYearFromYmd(ymd)?.year ?? null
+}
+
+/** Include invoice in annual EÜR totals when `taxDate` calendar year matches. */
+export function revenueInvoiceMatchesCalendarYear(data: Record<string, unknown>, calendarYear: number): boolean {
+  const y = revenueInvoiceReportingYear(data)
+  return y === calendarYear
+}
+
+/** Same calendar VAT quarter as persisted `quartal` — from stored `taxDate` only. */
+export function revenueInvoiceMatchesVatCalendarQuarter(
+  data: Record<string, unknown>,
+  selectedYear: number,
+  selectedQuarter: 1 | 2 | 3 | 4,
+): boolean {
+  const ymd = revenueInvoiceReportingYmd(data)
+  if (!ymd) return false
+  const qy = quartalAndYearFromYmd(ymd)
+  if (!qy) return false
+  const fq =
+    qy.quartal === "q1" ? 1 : qy.quartal === "q2" ? 2 : qy.quartal === "q3" ? 3 : 4
+  return qy.year === selectedYear && fq === selectedQuarter
 }
 
 /** Sales receipt — payment proof / acknowledgment; income & VAT already on the invoice. */

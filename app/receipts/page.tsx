@@ -359,7 +359,7 @@ export default function ReceiptsPage() {
                   <TableHead>Invoice Ref</TableHead>
                   <TableHead>Amount</TableHead>
                   {hasNonEurInView ? (
-                    <TableHead className="text-right whitespace-nowrap">ECB rate</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">FX rate</TableHead>
                   ) : null}
                   <TableHead className="text-right whitespace-nowrap">EUR</TableHead>
                   <TableHead className="text-right">Actions</TableHead>

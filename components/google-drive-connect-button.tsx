@@ -94,10 +94,12 @@ export function GoogleDriveConnectButton({ onConnected, className }: Props) {
         setConnecting(false)
         if (resp.error) {
           const base = [resp.error_description, resp.error].filter(Boolean).join(" — ") || "OAuth failed"
+          const origin =
+            typeof window !== "undefined" ? window.location.origin : "(this page origin, e.g. http://localhost:3000)"
           const originHint =
             resp.error === "redirect_uri_mismatch" ||
             /redirect_uri|origin|OAuth 2\.0/i.test(String(resp.error_description ?? ""))
-              ? ` Add this exact origin under Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 Web client → Authorized JavaScript origins: ${typeof window !== "undefined" ? window.location.origin : "(this page origin)"}. Save and wait ~1 minute.`
+              ? ` In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 Web client: (1) Authorized JavaScript origins — add exactly: ${origin}. (2) Authorized redirect URIs — add: postmessage. Save and wait ~1 minute.`
               : ""
           toast({
             title: "Google Drive",

@@ -7,95 +7,143 @@ service cloud.firestore {
       allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ── outgoing documents ────────────────────────────────────────────────
+    // exchange_rates: BMF import ({userId}_bmf_{yyyy}), legacy year doc + months/…
+    match /exchange_rates/{docId} {
+      allow read: if request.auth != null && (
+        docId.matches('^\\d{4}$') ||
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid ||
+        (docId.matches('^\\d{4}$') && request.resource.data.kind == 'bmf_ust_year')
+      );
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        (docId.matches('^\\d{4}$') && resource.data.kind == 'bmf_ust_year')
+      );
+    }
+
+    match /exchange_rates/{yearDoc}/months/{monthId} {
+      allow read, create, update, delete: if request.auth != null && yearDoc.matches('^\\d{4}$');
+    }
+    match /exchange_rates/{yearDoc}/months/{monthId}/currencies/{code} {
+      allow read, create, update, delete: if request.auth != null && yearDoc.matches('^\\d{4}$');
+    }
+
+    // Per-user docs: read allows missing doc (resource == null); create requires userId on new data.
     match /invoices/{docId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /deliveryNotes/{docId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /proformaInvoices/{docId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (resource == null || resource.data.userId == request.auth.uid);
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /clients/{clientId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /receipts/{docId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
-    // ── legacy cost collections ───────────────────────────────────────────
     match /bills/{billId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /assets/{assetId} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /pauschalCosts/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
-    // ── cost entities (new) ───────────────────────────────────────────────
     match /cost_invoice/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /cost_partial_business_use/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /cost_pauschale/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /cost_afa/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     match /cost_afa_multiyear_slice/{id} {
-      allow read, list, get, create, update, delete: if request.auth != null &&
-        (
-          (resource == null && request.resource.data.userId == request.auth.uid) ||
-          (resource != null && resource.data.userId == request.auth.uid)
-        );
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
-    // Default deny
+    match /bmfUstRates/{docId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -76,13 +76,15 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
         },
         invoiceDate: invoiceData.invoiceDate instanceof Date ? invoiceData.invoiceDate.toISOString() : invoiceData.invoiceDate,
         dueDate: invoiceData.dueDate instanceof Date ? invoiceData.dueDate.toISOString() : invoiceData.dueDate,
+        taxDate:
+          invoiceData.taxDate instanceof Date ? invoiceData.taxDate.toISOString() : invoiceData.taxDate ?? null,
         subtotal,
         tax,
         total,
         language: invoiceData.clientLanguage || "en",
       }
 
-      const pdfBlob = await generateInvoicePDF(pdfData)
+      const pdfBlob = await generateInvoicePDF(pdfData, companies)
       downloadPDF(pdfBlob, buildDocumentFilename(pdfData, "invoice"))
 
       toast({ title: "PDF generated", description: "Your invoice PDF has been downloaded." })
@@ -132,8 +134,8 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                       {selectedCompany.businessDetails.country}
                     </div>
                   )}
-                  {selectedCompany.businessDetails?.phone && <div>{selectedCompany.businessDetails.phone}</div>}
                   {selectedCompany.businessDetails?.email && <div>{selectedCompany.businessDetails.email}</div>}
+                  {selectedCompany.businessDetails?.phone && <div>{selectedCompany.businessDetails.phone}</div>}
                 </div>
               </div>
             </div>
@@ -192,8 +194,12 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
               </div>
 
               <div className="border rounded-b-md">
-                <div className="p-4 flex justify-end">
-                  <div className="w-1/3 space-y-2">
+                <div className="p-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="text-sm text-muted-foreground order-2 sm:order-1">
+                    <span className="font-medium text-foreground">Tax date (Leistungsdatum):</span>{" "}
+                    {invoiceData.taxDate ? formatDocumentDateBerlin(invoiceData.taxDate, "PP") : "—"}
+                  </div>
+                  <div className="w-full sm:w-1/3 space-y-2 sm:ml-auto order-1 sm:order-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal:</span>
                       <span>{fmtCurrency(calculateSubtotal())}</span>

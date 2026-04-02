@@ -198,9 +198,9 @@ export function buildCostItemPayload(params: {
   amountNetEur?: number
   amountVatEur?: number
   amountGrossEur?: number
-  /** ECB rate: units of original currency per 1 EUR */
+  /** Reference rate: units of original currency per 1 EUR */
   eurRate?: number
-  /** yyyy-MM-dd the ECB rate was resolved for */
+  /** yyyy-MM-dd the rate row is keyed to (document date) */
   eurRateDate?: string
   invoice?: InvoiceInput
   partial?: PartialInput

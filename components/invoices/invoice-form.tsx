@@ -24,8 +24,8 @@ import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { generateNextDocumentNumber } from "@/lib/document-number"
 import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
-import { revenueDocumentReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
+import { quartalAndYearFromYmd, revenueDocumentReportingFlags } from "@/lib/reporting-flags"
+import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
 
 type InvoiceFormProps = {
   userId: string
@@ -49,6 +49,7 @@ const invoiceSchema = z.object({
   dueDate: z.date({
     required_error: "Due date is required",
   }),
+  taxDate: z.date().optional(),
   currency: z.enum(["EUR", "USD", "GBP", "CZK"], { required_error: "Currency is required" }),
   unitOfWork: z.enum(["M/D", "M/H", "Kg", "Piece"], { required_error: "Unit of work is required" }),
   taxRate: z.coerce.number().min(0).max(25).default(20),
@@ -109,15 +110,6 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
   // Handle form submission
   async function onSubmit(values: InvoiceFormValues) {
-    if (isNonEurWithFutureBusinessDate(values.currency, values.invoiceDate)) {
-      toast({
-        title: "Cannot save invoice",
-        description:
-          "For currencies other than EUR, the invoice date cannot be in the future — ECB exchange rates are not published for future days. Set the invoice date to today or earlier, or switch the document to EUR.",
-      })
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
@@ -126,9 +118,18 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
       const tax = subtotal * (values.taxRate / 100)
       const total = subtotal + tax
 
+      const invoiceDateYmd = persistDocumentDateYmd(values.invoiceDate)
+      // Save-time only: empty VAT date → store Leistungsdatum as invoice date; `taxDate` is always persisted.
+      const taxDateYmd = persistDocumentDateYmd(values.taxDate ?? values.invoiceDate)
+      const taxPeriodMeta = quartalAndYearFromYmd(taxDateYmd)
+      const euerYear = taxPeriodMeta?.year ?? parseInt(invoiceDateYmd.slice(0, 4), 10)
+
       const eurPersist = await buildRevenueDocumentEurPersist({
+        db,
+        userId,
         kind: "invoice",
-        invoiceDateIso: persistDocumentDateYmd(values.invoiceDate),
+        invoiceDateIso: invoiceDateYmd,
+        invoiceTaxDateIso: taxDateYmd,
         currency: values.currency,
         subtotal,
         tax,
@@ -138,9 +139,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
-
-      const invoiceDateYmd = persistDocumentDateYmd(values.invoiceDate)
-      const reporting = revenueDocumentReportingFlags(invoiceDateYmd)
+      const reporting = revenueDocumentReportingFlags(taxDateYmd)
 
       // Prepare invoice data
       const invoiceData = {
@@ -172,6 +171,8 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         invoiceNumber: values.invoiceNumber,
         invoiceDate: invoiceDateYmd,
         dueDate: persistDocumentDateYmd(values.dueDate),
+        taxDate: taxDateYmd,
+        euerYear,
         currency: values.currency,
         unitOfWork: values.unitOfWork,
         taxRate: values.taxRate,
@@ -183,6 +184,9 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         taxEur: eurPersist.taxEur,
         totalEur: eurPersist.totalEur,
         eurRateDate: eurPersist.eurRateDate,
+        ...(values.currency !== "EUR" && eurPersist.exchangeRateToEur != null
+          ? { exchangeRateToEur: eurPersist.exchangeRateToEur }
+          : {}),
         notes: values.notes || "",
         terms: values.terms || "",
         status: "pending", // pending, paid, overdue, cancelled
@@ -203,6 +207,14 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
       // Navigate to invoice view
       router.push(`/invoices/${docRef.id}`)
     } catch (error) {
+      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
+        toast({
+          title: "Missing exchange rate",
+          description:
+            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
+        })
+        return
+      }
       console.error("Error creating invoice:", error)
       toast({
         title: "Error",
@@ -295,7 +307,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Invoice Details</h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField
                       control={form.control}
                       name="invoiceNumber"
@@ -359,6 +371,39 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                               <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                             </PopoverContent>
                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="taxDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>
+                            Tax Date{" "}
+                            <span className="text-xs font-normal text-muted-foreground">(Leistungsdatum)</span>
+                          </FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                >
+                                  {field.value ? format(field.value, "PPP") : <span>Same as invoice date</span>}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">
+                            Sets the VAT quarter (Q1–Q4). Leave blank to use invoice date.
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

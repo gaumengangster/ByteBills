@@ -3,9 +3,15 @@ import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { getTranslations } from "./translations"
 import { registerFonts } from "./pdf-fonts"
 import { shouldShowReverseChargeNotice } from "./reverse-charge"
+import { mergeInvoiceCompanyDetailsFromCompany, type CompanyDoc } from "./invoice-company-details"
 
-export async function generateInvoicePDF(invoice: any): Promise<Blob> {
-  const lang = invoice.language || "en"
+export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[]): Promise<Blob> {
+  const mergedDetails =
+    Array.isArray(companies) && companies.length > 0
+      ? mergeInvoiceCompanyDetailsFromCompany(invoice, companies)
+      : invoice.companyDetails ?? {}
+  const inv = { ...invoice, companyDetails: mergedDetails }
+  const lang = inv.language || "en"
   const t = getTranslations(lang)
 
   const pdf = new jsPDF("p", "mm", "a4")
@@ -28,13 +34,13 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   pdf.setFontSize(10)
   pdf.setFont("Roboto", "normal")
-  pdf.text(`${t.invoiceNumber}: ${invoice.invoiceNumber}`, margin, y)
+  pdf.text(`${t.invoiceNumber}: ${inv.invoiceNumber}`, margin, y)
   y += 5
-  pdf.text(`${t.date}: ${formatDocumentDateBerlin(invoice.invoiceDate, "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`${t.date}: ${formatDocumentDateBerlin(inv.invoiceDate, "MMMM d, yyyy")}`, margin, y)
   y += 5
-  pdf.text(`${t.dueDate}: ${formatDocumentDateBerlin(invoice.dueDate, "MMMM d, yyyy")}`, margin, y)
+  pdf.text(`${t.dueDate}: ${formatDocumentDateBerlin(inv.dueDate, "MMMM d, yyyy")}`, margin, y)
 /*   y += 5
-  pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, y) */
+  pdf.text(`Status: ${inv.status.toUpperCase()}`, margin, y) */
   y += 15
 
   // Company details on the right
@@ -44,30 +50,44 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   // Right-align all company details with proper positioning
   const rightMargin = pageWidth - margin
-  pdf.text(invoice.companyDetails.name, rightMargin, companyY, { align: "right" })
+  const cd = inv.companyDetails as {
+    name?: string
+    address?: string
+    city?: string
+    country?: string
+    email?: string
+    phone?: string
+  }
+  pdf.text(String(cd.name ?? ""), rightMargin, companyY, { align: "right" })
 
   pdf.setFontSize(9)
   pdf.setFont("Roboto", "normal")
   let companyDetailY = companyY + 5
 
-  if (invoice.companyDetails.address) {
-    pdf.text(invoice.companyDetails.address, rightMargin, companyDetailY, { align: "right" })
-    companyDetailY += 4
+  if (cd.address?.trim()) {
+    const addrLines = cd.address
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+    for (const line of addrLines) {
+      pdf.text(line, rightMargin, companyDetailY, { align: "right" })
+      companyDetailY += 4
+    }
   }
 
-  if (invoice.companyDetails.city || invoice.companyDetails.country) {
-    const location = [invoice.companyDetails.city, invoice.companyDetails.country].filter(Boolean).join(", ")
+  if (cd.city || cd.country) {
+    const location = [cd.city, cd.country].filter(Boolean).join(", ")
     pdf.text(location, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  if (invoice.companyDetails.phone) {
-    pdf.text(invoice.companyDetails.phone, rightMargin, companyDetailY, { align: "right" })
+  if (cd.email) {
+    pdf.text(cd.email, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
-  if (invoice.companyDetails.email) {
-    pdf.text(invoice.companyDetails.email, rightMargin, companyDetailY, { align: "right" })
+  if (cd.phone) {
+    pdf.text(cd.phone, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 
@@ -78,11 +98,11 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   pdf.setFontSize(10)
   pdf.setFont("Roboto", "normal")
-  pdf.text(invoice.clientDetails.name, margin, y)
+  pdf.text(inv.clientDetails.name, margin, y)
   y += 5
 
-  if (invoice.clientDetails?.address) {
-    const address = invoice.clientDetails.address as string
+  if (inv.clientDetails?.address) {
+    const address = inv.clientDetails.address as string
     const addressLines = address
       .replace(/\\n/g, '\n') 
       .split('\n')
@@ -96,21 +116,21 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   }
   
 
-  if (invoice.clientDetails.phone) {
-    pdf.text(invoice.clientDetails.phone, margin, y)
+  if (inv.clientDetails.phone) {
+    pdf.text(inv.clientDetails.phone, margin, y)
     y += 5
   }
 
-  if (invoice.clientDetails.email) {
-    pdf.text(invoice.clientDetails.email, margin, y)
+  if (inv.clientDetails.email) {
+    pdf.text(inv.clientDetails.email, margin, y)
     y += 5
   }
-  if (invoice.clientDetails.registrationNumber) {
-    pdf.text(`${t.registrationNumber}: ${invoice.clientDetails.registrationNumber}`, margin, y)
+  if (inv.clientDetails.registrationNumber) {
+    pdf.text(`${t.registrationNumber}: ${inv.clientDetails.registrationNumber}`, margin, y)
     y += 5
   }
-  if (invoice.clientDetails.vatNumber) {
-    pdf.text(`${t.vatNumber}: ${invoice.clientDetails.vatNumber}`, margin, y)
+  if (inv.clientDetails.vatNumber) {
+    pdf.text(`${t.vatNumber}: ${inv.clientDetails.vatNumber}`, margin, y)
     y += 5
   }
 
@@ -139,7 +159,7 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
 
   // Table rows
   pdf.setFont("Roboto", "normal")
-  invoice.items.forEach((item: any, index: number) => {
+  inv.items.forEach((item: any, index: number) => {
     const rowHeight = 8
 
     // Add alternating row background
@@ -149,12 +169,12 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
     }
 
     pdf.text(item.description, tableLeft + 2, y + 5)
-    pdf.text(item.quantity.toString() + ' ' + invoice.unitOfWork, tableLeft + colWidths.description + 2, y + 5)
+    pdf.text(item.quantity.toString() + ' ' + inv.unitOfWork, tableLeft + colWidths.description + 2, y + 5)
 
-    const unitPriceFormatted = formatCurrency(item.unitPrice, invoice.currency)
+    const unitPriceFormatted = formatCurrency(item.unitPrice, inv.currency)
     pdf.text(unitPriceFormatted, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
 
-    const amountFormatted = formatCurrency(item.quantity * item.unitPrice, invoice.currency)
+    const amountFormatted = formatCurrency(item.quantity * item.unitPrice, inv.currency)
     pdf.text(amountFormatted, tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2, y + 5)
 
     y += rowHeight
@@ -170,14 +190,14 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
   pdf.text(t.subtotal, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.subtotal, invoice.currency),
+    formatCurrency(inv.subtotal, inv.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 8
 
   const reverseCharge = shouldShowReverseChargeNotice({
-    clientDetails: invoice.clientDetails,
+    clientDetails: inv.clientDetails,
   })
   if (reverseCharge) {
     pdf.setFontSize(8)
@@ -187,51 +207,57 @@ export async function generateInvoicePDF(invoice: any): Promise<Blob> {
   
   pdf.text(t.tax, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.tax, invoice.currency),
+    formatCurrency(inv.tax, inv.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 8
 
-   pdf.setFillColor(230, 230, 230)
-  pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F") 
+  const taxDateForDoc = inv.taxDate
+  pdf.setFillColor(230, 230, 230)
+  pdf.rect(tableLeft + colWidths.description + colWidths.quantity, y, colWidths.unitPrice + colWidths.amount, 8, "F")
+  pdf.setFont("Roboto", "normal")
+  pdf.setFontSize(9)
+  const taxDateLine = `${t.taxDate} ${formatDocumentDateBerlin(taxDateForDoc, "MMMM d, yyyy")}`
+  pdf.text(taxDateLine, tableLeft + 2, y + 5)
+  pdf.setFontSize(10)
   pdf.setFont("Roboto", "bold")
   pdf.text(t.total, tableLeft + colWidths.description + colWidths.quantity + 2, y + 5)
   pdf.text(
-    formatCurrency(invoice.total, invoice.currency),
+    formatCurrency(inv.total, inv.currency),
     tableLeft + colWidths.description + colWidths.quantity + colWidths.unitPrice + 2,
     y + 5,
   )
   y += 15
 
   // Notes and terms
-  if (invoice.notes || invoice.terms) {
+  if (inv.notes || inv.terms) {
     if (y > pageHeight - 60) {
       pdf.addPage()
       y = margin
     }
 
-    if (invoice.notes) {
+    if (inv.notes) {
       pdf.setFont("Roboto", "bold")
       pdf.text(t.notes, margin, y)
       y += 7
 
       pdf.setFont("Roboto", "normal")
-      y = addWrappedText(invoice.notes, margin, y, tableWidth, 5)
+      y = addWrappedText(inv.notes, margin, y, tableWidth, 5)
       y += 10
     }
 
-    if (invoice.terms) {
+    if (inv.terms) {
       pdf.setFont("Roboto", "bold")
       pdf.text(t.termsAndConditions, margin, y)
       y += 7
 
       pdf.setFont("Roboto", "normal")
-      y = addWrappedText(invoice.terms, margin, y, tableWidth, 5)
+      y = addWrappedText(inv.terms, margin, y, tableWidth, 5)
       y += 10
     }
   }
-const hasBankDetails = invoice.companyDetails.bankName || invoice.companyDetails.iban
+const hasBankDetails = inv.companyDetails.bankName || inv.companyDetails.iban
 if (hasBankDetails) {
   pdf.setFontSize(10)
   pdf.setFont("Roboto", 'bold')
@@ -240,10 +266,10 @@ if (hasBankDetails) {
   y += 6
   
   const paymentDetails = [
-    { label: t.bank, value: invoice.companyDetails.bankName },
-    { label: t.iban, value: invoice.companyDetails.iban },
-    { label: t.bankCode, value:  invoice.companyDetails.swiftBic },
-    { label: t.bankAddress, value: invoice.companyDetails.bankAddress }
+    { label: t.bank, value: inv.companyDetails.bankName },
+    { label: t.iban, value: inv.companyDetails.iban },
+    { label: t.bankCode, value:  inv.companyDetails.swiftBic },
+    { label: t.bankAddress, value: inv.companyDetails.bankAddress }
   ]
   
   pdf.setFontSize(9)

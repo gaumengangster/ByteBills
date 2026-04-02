@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useMemo, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/use-toast"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
+import { mergeInvoiceCompanyDetailsFromCompany } from "@/lib/invoice-company-details"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
 import { formatCurrency } from "@/lib/utils"
@@ -19,7 +20,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter()
   const [invoice, setInvoice] = useState<any>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
+  const [companies, setCompanies] = useState<any[]>([])
   const { id } = use(params)
+
+  const displayCompany = useMemo(() => {
+    if (!invoice) return {} as any
+    if (companies.length > 0) {
+      return mergeInvoiceCompanyDetailsFromCompany(invoice, companies)
+    }
+    return invoice.companyDetails ?? {}
+  }, [invoice, companies])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -78,6 +88,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       fetchInvoice()
     }
   }, [user, id, router])
+
+  useEffect(() => {
+    if (!user) return
+    getDoc(doc(db, "bytebills-users", user.uid))
+      .then((snap) => {
+        if (snap.exists()) setCompanies(snap.data().companies ?? [])
+      })
+      .catch(() => setCompanies([]))
+  }, [user])
 
   const refreshInvoice = async () => {
     if (!user || !id) return
@@ -163,7 +182,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           {user ?
-            (<InvoiceActions invoice={invoice} onStatusChange={handleStatusChange} onInvoiceRefresh={refreshInvoice} />)
+            (<InvoiceActions
+              invoice={invoice}
+              onStatusChange={handleStatusChange}
+              onInvoiceRefresh={refreshInvoice}
+              companies={companies}
+            />)
             : (<p>Loading user data...</p>)
           }
         </div>
@@ -326,56 +350,56 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {invoice.companyDetails.logo && (
+                  {displayCompany.logo && (
                     <img
-                      src={invoice.companyDetails.logo || "/placeholder.svg"}
-                      alt={invoice.companyDetails.name}
+                      src={displayCompany.logo || "/placeholder.svg"}
+                      alt={displayCompany.name}
                       className="h-12 object-contain mb-2"
                     />
                   )}
 
                   <div>
-                    <h3 className="font-medium">{invoice.companyDetails.name}</h3>
-                    {invoice.companyDetails.address && (
-                      <p className="text-sm text-muted-foreground mt-1">{invoice.companyDetails.address}</p>
+                    <h3 className="font-medium">{displayCompany.name}</h3>
+                    {displayCompany.address && (
+                      <p className="text-sm text-muted-foreground mt-1">{displayCompany.address}</p>
                     )}
-                    {(invoice.companyDetails.city || invoice.companyDetails.country) && (
+                    {(displayCompany.city || displayCompany.country) && (
                       <p className="text-sm text-muted-foreground">
-                        {invoice.companyDetails.city}
-                        {invoice.companyDetails.city && invoice.companyDetails.country && ", "}
-                        {invoice.companyDetails.country}
+                        {displayCompany.city}
+                        {displayCompany.city && displayCompany.country && ", "}
+                        {displayCompany.country}
                       </p>
                     )}
                   </div>
 
-                  {invoice.companyDetails.email && (
+                  {displayCompany.email && (
                     <div className="flex items-center">
                       <Mail className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{invoice.companyDetails.email}</span>
+                      <span>{displayCompany.email}</span>
                     </div>
                   )}
 
-                  {invoice.companyDetails.phone && (
+                  {displayCompany.phone && (
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
-                      <span>{invoice.companyDetails.phone}</span>
+                      <span>{displayCompany.phone}</span>
                     </div>
                   )}
 
-                  {(invoice.companyDetails.bankName || invoice.companyDetails.iban) && (
+                  {(displayCompany.bankName || displayCompany.iban) && (
                     <div className="pt-3 mt-3 border-t">
                       <h4 className="text-sm font-medium mb-2">Bank Details</h4>
-                      {invoice.companyDetails.bankName && (
-                        <p className="text-sm text-muted-foreground">Bank: {invoice.companyDetails.bankName}</p>
+                      {displayCompany.bankName && (
+                        <p className="text-sm text-muted-foreground">Bank: {displayCompany.bankName}</p>
                       )}
-                      {invoice.companyDetails.iban && (
-                        <p className="text-sm text-muted-foreground">IBAN: {invoice.companyDetails.iban}</p>
+                      {displayCompany.iban && (
+                        <p className="text-sm text-muted-foreground">IBAN: {displayCompany.iban}</p>
                       )}
-                      {invoice.companyDetails.swiftBic && (
-                        <p className="text-sm text-muted-foreground">SWIFT/BIC: {invoice.companyDetails.swiftBic}</p>
+                      {displayCompany.swiftBic && (
+                        <p className="text-sm text-muted-foreground">SWIFT/BIC: {displayCompany.swiftBic}</p>
                       )}
-                      {invoice.companyDetails.bankAddress && (
-                        <p className="text-sm text-muted-foreground">Bank Address: {invoice.companyDetails.bankAddress}</p>
+                      {displayCompany.bankAddress && (
+                        <p className="text-sm text-muted-foreground">Bank Address: {displayCompany.bankAddress}</p>
                       )}
                     </div>
                   )}
@@ -399,26 +423,26 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </div>
 
               <div className="text-right">
-                {invoice.companyDetails.logo ? (
+                {displayCompany.logo ? (
                   <img
-                    src={invoice.companyDetails.logo || "/placeholder.svg"}
-                    alt={invoice.companyDetails.name}
+                    src={displayCompany.logo || "/placeholder.svg"}
+                    alt={displayCompany.name}
                     className="w-24 h-auto mb-2"
                   />
                 ) : (
-                  <div className="text-xl font-bold mb-2">{invoice.companyDetails.name}</div>
+                  <div className="text-xl font-bold mb-2">{displayCompany.name}</div>
                 )}
                 <div className="text-sm text-gray-600">
-                  {invoice.companyDetails.address && <div>{invoice.companyDetails.address}</div>}
-                  {(invoice.companyDetails.city || invoice.companyDetails.country) && (
+                  {displayCompany.address && <div>{displayCompany.address}</div>}
+                  {(displayCompany.city || displayCompany.country) && (
                     <div>
-                      {invoice.companyDetails.city}
-                      {invoice.companyDetails.city && invoice.companyDetails.country && ", "}
-                      {invoice.companyDetails.country}
+                      {displayCompany.city}
+                      {displayCompany.city && displayCompany.country && ", "}
+                      {displayCompany.country}
                     </div>
                   )}
-                  {invoice.companyDetails.phone && <div>{invoice.companyDetails.phone}</div>}
-                  {invoice.companyDetails.email && <div>{invoice.companyDetails.email}</div>}
+                  {displayCompany.email && <div>{displayCompany.email}</div>}
+                  {displayCompany.phone && <div>{displayCompany.phone}</div>}
                 </div>
               </div>
             </div>
@@ -471,7 +495,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     <td className="text-right p-2 border">{formatCurrency(invoice.tax, invoice)}</td>
                   </tr>
                   <tr className="font-bold">
-                    <td colSpan={2} className="border"></td>
+                    <td colSpan={2} className="border p-2 text-left text-sm font-normal text-gray-600 align-bottom">
+                      <span className="font-medium text-gray-900">Tax date (Leistungsdatum):</span>{" "}
+                      {formatDocumentDateBerlin(invoice.taxDate, "PP")}
+                    </td>
                     <td className="text-right p-2 border">Total</td>
                     <td className="text-right p-2 border">{formatCurrency(invoice.total, invoice)}</td>
                   </tr>

@@ -21,6 +21,10 @@ import { fetchNextCostSequenceNumber } from "@/lib/cost-sequence"
 import type { CostItem, CostDocumentType, VatCode, VendorOrigin } from "@/lib/cost-item-types"
 import { VAT_CODE_OPTIONS, VENDOR_ORIGIN_OPTIONS } from "@/lib/cost-item-types"
 import { vatQuarterMetaFromYmd, euerYearFromYmd } from "@/lib/cost-item-derive"
+import {
+  resolveReferenceRatesForCostExpenseDate,
+  unitsPerEurForCurrencyFromRow,
+} from "@/lib/cost-reference-rates"
 import type { ExtractedBillData } from "@/lib/bill-types"
 import {
   ArrowLeft,
@@ -243,36 +247,45 @@ export default function UploadDocumentPage() {
     if (!authLoading && user) void loadItem()
   }, [authLoading, user, loadItem, router])
 
-  const fetchEurRate = useCallback(async (date: string, currencyCode: string) => {
-    if (!date || currencyCode === "EUR") {
-      setEurRate(null)
-      setEurRateDate(null)
-      return
-    }
-
-    setFetchingEurRate(true)
-    try {
-      const res = await fetch("/api/eur-rates/by-dates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates: [date] }),
-      })
-      const data = (await res.json()) as { rates: Record<string, Record<string, number>> }
-      const rate = data.rates?.[date]?.[currencyCode]
-      if (rate && Number.isFinite(rate)) {
-        setEurRate(rate)
-        setEurRateDate(date)
-      } else {
+  const fetchEurRate = useCallback(
+    async (date: string, currencyCode: string) => {
+      if (!date || currencyCode === "EUR") {
         setEurRate(null)
         setEurRateDate(null)
+        return
       }
-    } catch {
-      setEurRate(null)
-      setEurRateDate(null)
-    } finally {
-      setFetchingEurRate(false)
-    }
-  }, [])
+      const uid = user?.uid
+      if (!uid) {
+        setEurRate(null)
+        setEurRateDate(null)
+        return
+      }
+
+      setFetchingEurRate(true)
+      try {
+        const { rates } = await resolveReferenceRatesForCostExpenseDate({
+          db,
+          userId: uid,
+          expenseDateYmd: date,
+          currency: currencyCode,
+        })
+        const rate = unitsPerEurForCurrencyFromRow(rates, currencyCode)
+        if (rate != null) {
+          setEurRate(rate)
+          setEurRateDate(date)
+        } else {
+          setEurRate(null)
+          setEurRateDate(null)
+        }
+      } catch {
+        setEurRate(null)
+        setEurRateDate(null)
+      } finally {
+        setFetchingEurRate(false)
+      }
+    },
+    [user?.uid],
+  )
 
   useEffect(() => {
     if (!invoiceDate || currency === "EUR") {
@@ -283,7 +296,7 @@ export default function UploadDocumentPage() {
       return
     }
     void fetchEurRate(invoiceDate, currency)
-  }, [currency, fetchEurRate, invoiceDate])
+  }, [currency, fetchEurRate, invoiceDate, user?.uid])
 
   // ── auto-extract when arriving at details step ───────────────────────────
   const hasExtracted = useRef(false)
@@ -784,14 +797,14 @@ export default function UploadDocumentPage() {
               {currency !== "EUR" && (
                 <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
                   {fetchingEurRate ? (
-                    <span className="text-muted-foreground">Fetching ECB rate for {currency}…</span>
+                    <span className="text-muted-foreground">Resolving reference rate for {currency}…</span>
                   ) : eurRate ? (
                     <span className="text-muted-foreground">
-                      ECB rate on {eurRateDate}: 1 EUR = {eurRate.toFixed(4)} {currency}
+                      Reference rate on {eurRateDate}: 1 EUR = {eurRate.toFixed(4)} {currency}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">
-                      Currency detected as {currency}, but no ECB rate is available for {invoiceDate || "this date"}.
+                      Currency detected as {currency}, but no reference rate is available for {invoiceDate || "this date"}.
                     </span>
                   )}
                 </div>

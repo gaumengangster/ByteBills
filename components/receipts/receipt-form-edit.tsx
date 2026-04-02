@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { updateDoc, doc } from "firebase/firestore"
+import { deleteField, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DocumentSettings } from "@/components/document-settings/document-settings"
 import { parseStoredDocumentDate, persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, isNonEurWithFutureBusinessDate } from "@/lib/revenue-document-eur"
+import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
 
 type ReceiptFormEditProps = {
   userId: string
@@ -95,15 +95,6 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
   // Handle form submission
   async function onSubmit(values: ReceiptFormValues) {
-    if (isNonEurWithFutureBusinessDate(currency, values.receiptDate)) {
-      toast({
-        title: "Cannot save receipt",
-        description:
-          "For currencies other than EUR, the receipt date cannot be in the future — ECB exchange rates are not published for future days. Set the receipt date to today or earlier, or switch the document to EUR.",
-      })
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
@@ -112,9 +103,13 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       const tax = subtotal * (taxPercentage / 100)
       const total = subtotal + tax
 
+      const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
+
       const eurPersist = await buildRevenueDocumentEurPersist({
+        db,
+        userId,
         kind: "receipt",
-        receiptDateIso: persistDocumentDateYmd(values.receiptDate),
+        receiptDateIso: receiptDateYmd,
         currency,
         subtotal,
         tax,
@@ -124,8 +119,6 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
       // Get selected company
       const selectedCompany = companies.find((c) => c.id === values.companyId)
-
-      const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
       const reporting = salesReceiptReportingFlags(receiptDateYmd)
 
       // Prepare updated receipt data
@@ -175,7 +168,13 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       }
 
       // Update in Firestore
-      await updateDoc(doc(db, "receipts", receiptId), updatedReceiptData)
+      await updateDoc(doc(db, "receipts", receiptId), {
+        ...updatedReceiptData,
+        ...(currency !== "EUR" && eurPersist.exchangeRateToEur != null
+          ? { exchangeRateToEur: eurPersist.exchangeRateToEur }
+          : { exchangeRateToEur: deleteField() }),
+        eurRateDateVat: deleteField(),
+      })
 
       toast({
         title: "Success",
@@ -185,6 +184,14 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
       // Navigate to receipt view
       router.push(`/receipts/${receiptId}`)
     } catch (error) {
+      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
+        toast({
+          title: "Missing exchange rate",
+          description:
+            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
+        })
+        return
+      }
       console.error("Error updating receipt:", error)
       toast({
         title: "Error",
