@@ -24,7 +24,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast"
 import { Check, Image, Loader2, Trash2, Upload } from "lucide-react"
-import countryList from "react-select-country-list"
+import {
+  countryStoredToSelectCode,
+  getCountryOptions,
+  normalizeStoredCountryForForm,
+} from "@/lib/company-country-label"
 
 type BusinessSettingsProps = {
   selectedCompany: any
@@ -46,7 +50,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
     businessDetails: {
       address: selectedCompany?.businessDetails?.address || "",
       city: selectedCompany?.businessDetails?.city || "",
-      country: selectedCompany?.businessDetails?.country || "US",
+      country: normalizeStoredCountryForForm(selectedCompany?.businessDetails?.country),
       email: selectedCompany?.businessDetails?.email || "",
       phone: selectedCompany?.businessDetails?.phone || "",
       website: selectedCompany?.businessDetails?.website || "",
@@ -58,7 +62,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
     },
   })
 
-  const countries = countryList().getData()
+  const countries = getCountryOptions()
 
   useEffect(() => {
     if (companyId) {
@@ -71,7 +75,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
           businessDetails: {
             address: selected.businessDetails?.address || "",
             city: selected.businessDetails?.city || "",
-            country: selected.businessDetails?.country || "UG",
+            country: normalizeStoredCountryForForm(selected.businessDetails?.country),
             email: selected.businessDetails?.email || "",
             phone: selected.businessDetails?.phone || "",
             website: selected.businessDetails?.website || "",
@@ -417,8 +421,11 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
                 <div className="space-y-2">
                   <Label htmlFor="business-country">Country</Label>
                   <Select
-                    value={formData.businessDetails.country}
-                    onValueChange={(value) => handleSelectChange(value, "businessDetails.country")}
+                    value={countryStoredToSelectCode(formData.businessDetails.country) || undefined}
+                    onValueChange={(code) => {
+                      const label = countries.find((c) => c.value === code)?.label ?? code
+                      handleSelectChange(label, "businessDetails.country")
+                    }}
                   >
                     <SelectTrigger id="business-country">
                       <SelectValue placeholder="Select a country" />

@@ -20,6 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertCircle, Building2, Check, Lock, Plus, Trash2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
+import { defaultUsCountryLabel } from "@/lib/company-country-label"
 
 type Company = {
   id: string
@@ -55,7 +56,7 @@ export function CompanyList({ companies, isPremium, userId }: CompanyListProps) 
         businessDetails: {
           address: "",
           city: "",
-          country: "US",
+          country: defaultUsCountryLabel(),
           email: "",
           phone: "",
         },
