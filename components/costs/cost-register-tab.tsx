@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { collection, deleteDoc, doc, getDocs, limit, query, where } from "firebase/firestore"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/firebase"
@@ -29,9 +37,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Loader2, Trash2, Upload } from "lucide-react"
+import { Loader2, MoreHorizontal, RefreshCw, Trash2, Upload } from "lucide-react"
 import { deleteGoogleDriveFile, getGoogleDriveAccessToken } from "@/lib/google-drive-upload-client"
 import { driveDeleteOrphanWarning } from "@/lib/google-drive-delete-warning"
+import { costItemNeedsFxSync, costItemSupportsFxConversion, syncCostItemFx } from "@/lib/sync-cost-item-fx"
 
 function typeLabel(t: CostItemType): string {
   switch (t) {
@@ -50,10 +59,27 @@ function typeBadgeVariant(t: CostItemType): "default" | "secondary" | "outline" 
   return "secondary"
 }
 
+function calendarQuarterLabel(item: CostItem): string | null {
+  if (typeof item.costQuarter === "number" && item.costQuarter >= 1 && item.costQuarter <= 4) {
+    return `Q${item.costQuarter}`
+  }
+  if (item.quartal === "q1") return "Q1"
+  if (item.quartal === "q2") return "Q2"
+  if (item.quartal === "q3") return "Q3"
+  if (item.quartal === "q4") return "Q4"
+  return null
+}
+
 function reportingBadge(item: CostItem): string | null {
-  if (item.includeInVatQuarter && item.vatQuarter) return `VAT ${item.vatQuarter} ${item.vatYear ?? ""}`
-  if (!item.includeInVatQuarter && item.includeInAnnualEuer) return `EÜR ${item.euerYear}`
-  if (item.includeInAnnualEuer) return `EÜR ${item.euerYear}`
+  const year = item.costYear ?? item.euerYear
+  const qLabel = calendarQuarterLabel(item)
+  if (item.includeInVatQuarter && item.vatQuarter) {
+    return `VAT ${item.vatQuarter} ${item.vatYear ?? year ?? ""}`
+  }
+  if (item.includeInAnnualEuer && year) {
+    return qLabel ? `EÜR ${year} · ${qLabel}` : `EÜR ${year}`
+  }
+  if (year) return qLabel ? `${year} · ${qLabel}` : String(year)
   return null
 }
 
@@ -72,28 +98,90 @@ function fmtAmount(n: number | undefined | null, currency: string = "EUR"): stri
   }
 }
 
-function amountCells(item: CostItem): { net: string; vat: string; gross: string } {
-  if (item.type === "cost_afa_multiyear_slice") {
-    return { net: fmtAmount(item.amountNet, "EUR"), vat: "—", gross: "—" }
-  }
-  const currency = item.currency || "EUR"
-  if (item.type === "cost_partial_business_use") {
-    // Show deductible amounts (the business-use portion)
+function finiteNum(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined
+}
+
+type AmountCell = { main: string; original?: string }
+
+function displayAmount(
+  eur: number | undefined,
+  original: number | undefined,
+  itemCurrency: string,
+): AmountCell {
+  const cur = (itemCurrency || "EUR").trim().toUpperCase()
+  if (cur !== "EUR" && eur != null) {
     return {
-      net: fmtAmount(item.deductibleNetAmount, currency),
-      vat: fmtAmount(item.deductibleVatAmount, currency),
-      gross: fmtAmount(item.deductibleGrossAmount, currency),
+      main: fmtAmount(eur, "EUR"),
+      original: original != null ? fmtAmount(original, cur) : undefined,
     }
   }
-  return {
-    net: fmtAmount(item.amountNet, currency),
-    vat: fmtAmount(item.amountVat, currency),
-    gross: fmtAmount(item.amountGross ?? (
-      typeof item.amountNet === "number" && typeof item.amountVat === "number"
-        ? item.amountNet + item.amountVat
-        : undefined
-    ), currency),
+  const value = original ?? eur
+  return { main: fmtAmount(value, cur === "EUR" ? "EUR" : cur) }
+}
+
+function amountCells(item: CostItem): { net: AmountCell; vat: AmountCell; gross: AmountCell } {
+  if (item.type === "cost_afa_multiyear_slice") {
+    return {
+      net: { main: fmtAmount(item.amountNet, "EUR") },
+      vat: { main: "—" },
+      gross: { main: "—" },
+    }
   }
+
+  const currency = item.currency || "EUR"
+
+  if (item.type === "cost_partial_business_use") {
+    const grossOriginal =
+      finiteNum(item.deductibleGrossAmount) ??
+      (finiteNum(item.deductibleNetAmount) != null && finiteNum(item.deductibleVatAmount) != null
+        ? item.deductibleNetAmount + item.deductibleVatAmount
+        : undefined)
+    const grossEur =
+      finiteNum(item.deductibleGrossAmountEur) ??
+      (finiteNum(item.deductibleNetAmountEur) != null && finiteNum(item.deductibleVatAmountEur) != null
+        ? Math.round((item.deductibleNetAmountEur + item.deductibleVatAmountEur) * 100) / 100
+        : undefined)
+    return {
+      net: displayAmount(finiteNum(item.deductibleNetAmountEur), finiteNum(item.deductibleNetAmount), currency),
+      vat: displayAmount(finiteNum(item.deductibleVatAmountEur), finiteNum(item.deductibleVatAmount), currency),
+      gross: displayAmount(grossEur, grossOriginal, currency),
+    }
+  }
+
+  const grossOriginal =
+    finiteNum(item.amountGross) ??
+    (finiteNum(item.amountNet) != null && finiteNum(item.amountVat) != null
+      ? item.amountNet + item.amountVat
+      : undefined)
+  const grossEur =
+    finiteNum(item.amountGrossEur) ??
+    (finiteNum(item.amountNetEur) != null && finiteNum(item.amountVatEur) != null
+      ? Math.round((item.amountNetEur + item.amountVatEur) * 100) / 100
+      : undefined)
+
+  return {
+    net: displayAmount(finiteNum(item.amountNetEur), finiteNum(item.amountNet), currency),
+    vat: displayAmount(finiteNum(item.amountVatEur), finiteNum(item.amountVat), currency),
+    gross: displayAmount(grossEur, grossOriginal, currency),
+  }
+}
+
+function AmountTableCell({
+  cell,
+  className,
+}: {
+  cell: AmountCell
+  className?: string
+}) {
+  return (
+    <div className={`flex flex-col items-end gap-0.5 ${className ?? ""}`}>
+      <span>{cell.main}</span>
+      {cell.original ? (
+        <span className="text-[10px] text-muted-foreground/70 tabular-nums">{cell.original}</span>
+      ) : null}
+    </div>
+  )
 }
 
 function fmtDate(ymd: string): string {
@@ -125,6 +213,7 @@ export function CostRegisterTab({
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; collectionName: string; data: CostItem } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [convertingFxId, setConvertingFxId] = useState<string | null>(null)
 
   const COST_COLLECTIONS: CostItemType[] = [
     "cost_invoice",
@@ -165,6 +254,65 @@ export function CostRegisterTab({
 
   useEffect(() => { void load() }, [load, refreshKey])
 
+  const handleConvertToEur = async (row: { id: string; collectionName: string; data: CostItem }) => {
+    setConvertingFxId(row.id)
+    try {
+      const result = await syncCostItemFx({
+        db,
+        userId,
+        collectionName: row.collectionName,
+        docId: row.id,
+        force: true,
+      })
+      if (!result.ok) {
+        if (result.reason === "not_applicable") {
+          toast({
+            title: "Already in EUR",
+            description: "This cost is recorded in EUR — no conversion needed.",
+          })
+        } else if (result.reason === "missing_fx") {
+          toast({
+            title: "Missing exchange rate",
+            description:
+              "Import the BMF CSV for this expense month on Exchange rates, then try again.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Conversion failed",
+            description: "Could not compute EUR amounts for this cost.",
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      if (result.skipped) {
+        toast({
+          title: "Already converted",
+          description: "EUR amounts are already set for this cost.",
+        })
+        return
+      }
+      toast({
+        title: "Converted to EUR",
+        description:
+          result.amountNetEur != null && result.eurRate != null
+            ? `Net €${result.amountNetEur.toFixed(2)} (1 EUR = ${result.eurRate.toFixed(4)} ${row.data.currency})`
+            : "EUR amounts were updated from BMF rates.",
+      })
+      await load()
+    } catch (e) {
+      console.error(e)
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Conversion failed unexpectedly.",
+        variant: "destructive",
+      })
+    } finally {
+      setConvertingFxId(null)
+    }
+  }
+
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -196,8 +344,8 @@ export function CostRegisterTab({
         <CardHeader>
           <CardTitle>Cost register</CardTitle>
           <CardDescription>
-            All expenses added via <strong className="font-medium text-foreground">Add cost</strong>. Each
-            item has the full type, reporting flags, and attached documents.
+            All expenses added via <strong className="font-medium text-foreground">Add cost</strong>. Amounts show
+            in EUR when converted; otherwise in the original currency. Partial costs show the deductible portion.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -230,7 +378,14 @@ export function CostRegisterTab({
                   return (
                     <TableRow key={id}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {r.expenseDate ? fmtDate(r.expenseDate) : "—"}
+                        <div className="flex flex-col gap-0.5">
+                          <span>{r.expenseDate ? fmtDate(r.expenseDate) : "—"}</span>
+                          {costItemNeedsFxSync(r as unknown as Record<string, unknown>) ? (
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                              nonEUR
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
@@ -278,16 +433,20 @@ export function CostRegisterTab({
                           : null
                         return (
                           <>
-                            <TableCell className="text-right tabular-nums text-sm">{net}</TableCell>
+                            <TableCell className="text-right tabular-nums text-sm">
+                              <AmountTableCell cell={net} />
+                            </TableCell>
                             <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                               <div className="flex flex-col items-end gap-0.5">
-                                <span>{vat}</span>
+                                <AmountTableCell cell={vat} />
                                 {vatLabel && (
                                   <span className="text-[10px] text-muted-foreground/70 font-mono">{vatLabel}</span>
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm font-medium">{gross}</TableCell>
+                            <TableCell className="text-right tabular-nums text-sm font-medium">
+                              <AmountTableCell cell={gross} />
+                            </TableCell>
                           </>
                         )
                       })()}
@@ -309,15 +468,59 @@ export function CostRegisterTab({
                               Upload
                             </Button>
                           )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setDeleteTarget({ id, collectionName, data: r })}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              {costItemSupportsFxConversion(r as unknown as Record<string, unknown>) ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    void handleConvertToEur({ id, collectionName, data: r })
+                                  }
+                                  disabled={convertingFxId === id}
+                                >
+                                  {convertingFxId === id ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Converting…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <RefreshCw className="mr-2 h-4 w-4" />
+                                      {costItemNeedsFxSync(r as unknown as Record<string, unknown>)
+                                        ? "Convert to EUR"
+                                        : "Refresh EUR conversion"}
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              ) : null}
+                              {r.documentStatus === "pending" ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    router.push(
+                                      `/costs/${encodeURIComponent(collectionName)}/${id}/upload-document`,
+                                    )
+                                  }
+                                >
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  Upload document
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget({ id, collectionName, data: r })}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

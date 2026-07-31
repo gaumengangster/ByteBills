@@ -7,11 +7,7 @@ import { addMonths } from "date-fns"
 import type { AssetDepreciationSchedule } from "@/lib/asset-cost-types"
 import type { PauschalCategory } from "@/lib/pauschal-cost-types"
 import type { BillEuerExpenseCategory } from "@/lib/euer-expense-category"
-
-function billSubtotalEur(bill: Record<string, unknown>): number {
-  const v = bill.subtotalEur
-  return typeof v === "number" && Number.isFinite(v) ? v : 0
-}
+import { costNetEurForContext } from "@/lib/cost-report-aggregation"
 
 function overlapsCalendarYear(fromYmd: string, toYmd: string, year: number): boolean {
   const yStart = `${year}-01-01`
@@ -169,9 +165,10 @@ export function aggregateEuerYearlyExtra(
   let z52 = 0
   let z59bills = 0
   for (const bill of billsInYear) {
-    const cat = bill.euerExpenseCategory as BillEuerExpenseCategory | undefined
+    const cat = (bill.category ?? bill.euerExpenseCategory) as BillEuerExpenseCategory | undefined
+    const net = costNetEurForContext(bill, "euerNet") ?? 0
     if (cat === "homeoffice_miete") {
-      z52 += billSubtotalEur(bill)
+      z52 += net
     }
     if (
       cat === "software" ||
@@ -182,7 +179,7 @@ export function aggregateEuerYearlyExtra(
       cat === "office_supplies" ||
       cat === "education"
     ) {
-      z59bills += billSubtotalEur(bill)
+      z59bills += net
     }
   }
 

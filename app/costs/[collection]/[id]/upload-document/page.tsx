@@ -20,7 +20,7 @@ import { buildCostAusgabeUploadedFilename } from "@/lib/document-filename"
 import { fetchNextCostSequenceNumber } from "@/lib/cost-sequence"
 import type { CostItem, CostDocumentType, VatCode, VendorOrigin } from "@/lib/cost-item-types"
 import { VAT_CODE_OPTIONS, VENDOR_ORIGIN_OPTIONS } from "@/lib/cost-item-types"
-import { vatQuarterMetaFromYmd, euerYearFromYmd } from "@/lib/cost-item-derive"
+import { reportingPeriodPatchFromDoc } from "@/lib/cost-reporting-periods"
 import {
   resolveReferenceRatesForCostExpenseDate,
   unitsPerEurForCurrencyFromRow,
@@ -421,19 +421,6 @@ export default function UploadDocumentPage() {
         if (vendorOrigin) update.vendorOrigin = vendorOrigin
         update.currency = currencyCode
 
-        // Keep euerYear / vatYear / vatQuarter in sync with the (possibly updated) expense date
-        const dateFinal = invoiceDate || expDate
-        const computedEuerYear = euerYearFromYmd(dateFinal)
-        update.euerYear = computedEuerYear
-        if (costItem?.includeInVatQuarter) {
-          const qm = vatQuarterMetaFromYmd(dateFinal)
-          update.vatYear    = qm?.vatYear    ?? null
-          update.vatQuarter = qm?.vatQuarter ?? null
-        } else {
-          // Non-VAT items: keep vatYear aligned with euerYear; clear any stale vatQuarter
-          update.vatYear    = computedEuerYear
-          update.vatQuarter = deleteField()
-        }
         if (netVal != null) update.amountNet = netVal
         if (vatVal != null) update.amountVat = vatVal
         if (grossVal != null) update.amountGross = grossVal
@@ -451,6 +438,13 @@ export default function UploadDocumentPage() {
           update.amountGrossEur = grossVal != null && eurRate ? Math.round((grossVal / eurRate) * 100) / 100 : deleteField()
           update.eurRate = eurRate ?? deleteField()
           update.eurRateDate = eurRate ? ((eurRateDate ?? invoiceDate) || expDate) : deleteField()
+        }
+
+        const mergedDoc = { ...(costItem ?? {}), ...update } as Record<string, unknown>
+        const periodPatch = reportingPeriodPatchFromDoc(mergedDoc)
+        if (periodPatch) {
+          Object.assign(update, periodPatch)
+          if (!periodPatch.vatQuarter) update.vatQuarter = deleteField()
         }
       }
 

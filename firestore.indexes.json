@@ -41,6 +41,14 @@
       ]
     },
     {
+      "collectionGroup": "cost_pauschale",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "costYear", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cost_afa",
       "queryScope": "COLLECTION",
       "fields": [
@@ -65,6 +73,14 @@
       ]
     },
     {
+      "collectionGroup": "cost_invoice",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "costYear", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cost_partial_business_use",
       "queryScope": "COLLECTION",
       "fields": [
@@ -81,6 +97,14 @@
       ]
     },
     {
+      "collectionGroup": "cost_partial_business_use",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "costYear", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cost_afa",
       "queryScope": "COLLECTION",
       "fields": [
@@ -94,6 +118,14 @@
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "euerYear", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cost_afa",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "costYear", "order": "ASCENDING" }
       ]
     },
     {

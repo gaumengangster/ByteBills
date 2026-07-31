@@ -49,6 +49,7 @@ type TranslationKeys = {
   other: string
   registrationNumber: string
   vatNumber: string
+  issuerVatTaxNumber: string
 }
 
 const en: TranslationKeys = {
@@ -102,6 +103,7 @@ const en: TranslationKeys = {
   other: "Other",
   registrationNumber: "Registration No.",
   vatNumber: "VAT No.",
+  issuerVatTaxNumber: "VAT No.",
 }
 
 const de: TranslationKeys = {
@@ -155,6 +157,7 @@ const de: TranslationKeys = {
   other: "Sonstige",
   registrationNumber: "Reg.-Nr.",
   vatNumber: "USt-idNr.",
+  issuerVatTaxNumber: "VAT No.",
 }
 
 const translations: Record<string, TranslationKeys> = { en, de }
@@ -199,6 +202,14 @@ export type ReportsDashboardStrings = {
   vatReceivedInvoicesSecondary?: string
   vatPaidCostsTitle: string
   vatPaidCostsSecondary?: string
+  totalCostsNetTitle: string
+  totalCostsNetSecondary?: string
+  totalCostsGrossTitle: string
+  totalCostsGrossSecondary?: string
+  totalCostsVatTitle: string
+  totalCostsVatSecondary?: string
+  totalInvoicesTitle: string
+  averageInvoiceSecondary?: string
 }
 
 const elsterReportEn: ElsterReportUiStrings = {
@@ -272,6 +283,14 @@ const reportsDashboardEn: ReportsDashboardStrings = {
   vatReceivedInvoicesSecondary: "EUR on invoice date",
   vatPaidCostsTitle: "VAT paid (costs)",
   vatPaidCostsSecondary: "EUR on bill date",
+  totalCostsNetTitle: "Total costs (net)",
+  totalCostsNetSecondary: "Invoices, partial costs, AfA purchases, and pauschale in period (EUR net)",
+  totalCostsGrossTitle: "Total costs (gross)",
+  totalCostsGrossSecondary: "Invoices, partial costs, AfA purchases, and pauschale in period (EUR gross)",
+  totalCostsVatTitle: "Total costs (VAT)",
+  totalCostsVatSecondary: "Input VAT on supplier bills, EUR",
+  totalInvoicesTitle: "Total invoices",
+  averageInvoiceSecondary: "EUR per invoice in period",
 }
 
 const reportsDashboardDe: ReportsDashboardStrings = {
@@ -280,6 +299,14 @@ const reportsDashboardDe: ReportsDashboardStrings = {
   vatReceivedInvoicesSecondary: "EUR zum Rechnungsdatum",
   vatPaidCostsTitle: "VAT paid (costs)",
   vatPaidCostsSecondary: "EUR zum Belegdatum",
+  totalCostsNetTitle: "Total costs (net)",
+  totalCostsNetSecondary: "Rechnungen, Teilbetriebskosten, AfA-Käufe und Pauschalen im Zeitraum (netto EUR)",
+  totalCostsGrossTitle: "Total costs (gross)",
+  totalCostsGrossSecondary: "Rechnungen, Teilbetriebskosten, AfA-Käufe und Pauschalen im Zeitraum (brutto EUR)",
+  totalCostsVatTitle: "Total costs (VAT)",
+  totalCostsVatSecondary: "Vorsteuer auf Lieferantenbelege, EUR",
+  totalInvoicesTitle: "Total invoices",
+  averageInvoiceSecondary: "EUR pro Rechnung im Zeitraum",
 }
 
 const elsterReportByLang: Record<string, ElsterReportUiStrings> = {
@@ -336,19 +363,19 @@ const eurReportEn: EurReportUiStrings = {
   rowIncomeDesc:
     "Net turnover before VAT (subtotalEur). Not the same as dashboard Total Revenue, which uses gross totalEur. Issued invoices only; receipts excluded. EUR by invoice date.",
   rowExpenseLabel: "Total expenses (net)",
-  rowExpenseFirestore: "bills · subtotal",
+  rowExpenseFirestore: "cost_* · amountNetEur / deductibleNetAmountEur",
   rowExpenseAnlage: "EÜR Z.19 Gesamtausgaben",
-  rowExpenseDesc: "Net amounts on supplier cost bills, converted to EUR by bill date.",
+  rowExpenseDesc: "Net amounts on cost documents (native EUR fields). AfA purchase net is excluded here (see Z.44).",
   rowVatOutLabel: "Total VAT on income",
   rowVatOutFirestore: "invoices · tax",
   rowVatOutAnlage: "EÜR Z.10 USt (control)",
   rowVatOutDesc:
     "Output VAT on invoices only (receipts excluded). Reverse charge is declared separately in ELSTER.",
   rowVatInLabel: "Total VAT on expenses",
-  rowVatInFirestore: "bills · vatAmountEur",
+  rowVatInFirestore: "cost_* · amountVatEur / deductibleVatAmountEur",
   rowVatInAnlage: "EÜR Z.20 Vorsteuer",
   rowVatInDesc:
-    "Input VAT where the bill is marked deductible and included in VAT return (bills.vatDeductible, bills.includedInVatReturn).",
+    "Input VAT where includeInVatQuarter is true and the cost is deductible (native EUR fields).",
   footerDeadline:
     "EÜR and income tax (Einkommensteuer, Germany): annual filing is generally due by 31.07.{filingDeadlineYear} for calendar year {calendarYear}. Confirm dates and forms with your tax office or advisor.",
 }
@@ -368,18 +395,18 @@ const eurReportDe: EurReportUiStrings = {
   rowIncomeDesc:
     "Netto ohne USt (subtotalEur). Entspricht nicht der Dashboard-Summe „Total Revenue“ (brutto, totalEur). Nur Ausgangsrechnungen; Receipts ausgeschlossen. EUR zum Rechnungsdatum.",
   rowExpenseLabel: "Gesamtausgaben (netto)",
-  rowExpenseFirestore: "bills · subtotal",
+  rowExpenseFirestore: "cost_* · amountNetEur / deductibleNetAmountEur",
   rowExpenseAnlage: "EÜR Z.19 Gesamtausgaben",
-  rowExpenseDesc: "Netto aus Lieferantenbelegen (bills), EUR zum Belegdatum.",
+  rowExpenseDesc: "Netto aus Kostenbelegen (native EUR-Felder). AfA-Kaufnetto hier ausgeschlossen (siehe Z.44).",
   rowVatOutLabel: "Umsatzsteuer (Einnahmen)",
   rowVatOutFirestore: "invoices · tax",
   rowVatOutAnlage: "EÜR Z.10 USt (Kontrolle)",
   rowVatOutDesc: "Umsatzsteuer nur aus Rechnungen (Receipts ausgeschlossen). Reverse Charge gesondert.",
   rowVatInLabel: "Vorsteuer (Ausgaben)",
-  rowVatInFirestore: "bills · vatAmountEur",
+  rowVatInFirestore: "cost_* · amountVatEur / deductibleVatAmountEur",
   rowVatInAnlage: "EÜR Z.20 Vorsteuer",
   rowVatInDesc:
-    "Vorsteuer nur bei abziehbarer USt und in der Umsatzsteuererklärung berücksichtigt (bills.vatDeductible, bills.includedInVatReturn).",
+    "Vorsteuer wenn includeInVatQuarter und abziehbar (native EUR-Felder).",
   footerDeadline:
     "EÜR und Einkommensteuer: in der Regel Abgabe bis 31.07.{filingDeadlineYear} für das Kalenderjahr {calendarYear}. Termine beim Finanzamt bzw. Steuerberater prüfen.",
 }

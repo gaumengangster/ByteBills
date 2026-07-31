@@ -1,11 +1,11 @@
 /**
  * ELSTER-oriented quarter summaries for German tax reporting hints.
- * Uses persisted EUR fields: invoices (`subtotalEur`, `taxEur`), bills (`vatAmountEur` when Vorsteuer applies).
+ * Uses persisted EUR fields: invoices (`subtotalEur`, `taxEur`), costs (`amountVatEur` / `deductibleVatAmountEur` when Vorsteuer applies).
  */
 
 import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 import { resolveClientCountryCode } from "@/lib/client-country"
-import { billContributesInputVat } from "@/lib/report-eur-rates"
+import { billContributesInputVat, persistedBillVatEur } from "@/lib/report-eur-rates"
 
 export type ElsterZmRow = {
   clientName: string
@@ -88,10 +88,8 @@ export function aggregateElsterQuarterForDocuments(
   let paidVatCostsEur = 0
   for (const bill of billsInRange) {
     if (!billContributesInputVat(bill)) continue
-    const v = bill.vatAmountEur
-    if (typeof v === "number" && Number.isFinite(v)) {
-      paidVatCostsEur += v
-    }
+    const v = persistedBillVatEur(bill)
+    if (v != null) paidVatCostsEur += v
   }
 
   const zmRows: ElsterZmRow[] = [...zmMap.entries()]

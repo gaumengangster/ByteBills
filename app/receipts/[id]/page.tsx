@@ -22,6 +22,7 @@ import {
   Edit,
   Trash2,
   Loader2,
+  RefreshCw,
   Badge,
 } from "lucide-react"
 import { generateReceiptPDF, downloadReceiptPDF } from "@/lib/receipt-pdf-service"
@@ -43,6 +44,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { formatCurrency } from "@/lib/utils"
+import { revenueDocNeedsFxSync, syncRevenueDocumentFx } from "@/lib/sync-revenue-document-fx"
 
 export default function ReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth()
@@ -51,6 +53,7 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
   const [loadingReceipt, setLoadingReceipt] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isUploadingDrive, setIsUploadingDrive] = useState(false)
+  const [isSyncingFx, setIsSyncingFx] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const { id } = use(params)
 
@@ -122,6 +125,11 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
     [receipt],
   )
 
+  const showSyncExchangeRate = useMemo(
+    () => !!(receipt && revenueDocNeedsFxSync(receipt as Record<string, unknown>)),
+    [receipt],
+  )
+
   const refreshReceipt = async () => {
     if (!user || !id) return
     try {
@@ -134,6 +142,50 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
       })
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const handleSyncExchangeRate = async () => {
+    if (!receipt || !user) return
+    setIsSyncingFx(true)
+    try {
+      const result = await syncRevenueDocumentFx({
+        db,
+        userId: user.uid,
+        collection: "receipts",
+        docId: receipt.id,
+      })
+      if (!result.ok) {
+        if (result.reason === "missing_fx") {
+          toast({
+            title: "Missing exchange rate",
+            description:
+              "Import the BMF CSV for this document’s month on Exchange rates, then try again.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Sync failed",
+            description: "Could not update EUR amounts.",
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      if (result.skipped) {
+        toast({
+          title: "Already synced",
+          description: "EUR amounts are already set for this receipt.",
+        })
+        return
+      }
+      toast({ title: "Synced", description: "EUR amounts were updated from BMF rates." })
+      await refreshReceipt()
+    } catch (e) {
+      console.error(e)
+      toast({ title: "Error", description: "Sync failed unexpectedly.", variant: "destructive" })
+    } finally {
+      setIsSyncingFx(false)
     }
   }
 
@@ -314,6 +366,22 @@ export default function ReceiptDetailPage({ params }: { params: Promise<{ id: st
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>
+
+            {showSyncExchangeRate ? (
+              <Button variant="outline" onClick={() => void handleSyncExchangeRate()} disabled={isSyncingFx}>
+                {isSyncingFx ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Syncing…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Sync exchange rate
+                  </>
+                )}
+              </Button>
+            ) : null}
 
             <Button variant="outline" onClick={() => setDeleteDialogOpen(true)} className="text-red-600">
               <Trash2 className="mr-2 h-4 w-4" />

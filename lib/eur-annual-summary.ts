@@ -1,14 +1,13 @@
 /**
  * EÜR-oriented annual totals (German income/expense statement hints).
- * Uses persisted EUR fields only: invoices (`subtotalEur`, `taxEur`), bills (`subtotalEur` / `netEur`, `vatAmountEur`),
- * plus optional Pauschal assets / AfA lines from `aggregateEuerYearlyExtra`.
+ * Uses persisted EUR fields on native cost documents plus optional Pauschal / AfA lines.
  *
  * When `options.calendarYear` is set, **invoice** income/VAT lines count only if `taxDate` falls in that calendar year.
  */
 
+import { costNetEurForContext, sumCostsVatEur } from "@/lib/cost-report-aggregation"
 import { aggregateEuerYearlyExtra, type EuerYearlyExtra } from "@/lib/eur-euer-yearly"
 import { revenueInvoiceMatchesCalendarYear } from "@/lib/reporting-flags"
-import { sumBillsVatAmountEur } from "@/lib/report-eur-rates"
 import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 
 export type EurAnnualSummary = {
@@ -21,19 +20,6 @@ export type EurAnnualSummary = {
   /** Z.20 — input VAT (bills vatAmount) in EUR */
   inputVatEur: number
 } & EuerYearlyExtra
-
-function billSubtotalEur(bill: Record<string, unknown>): number {
-  // Prefer pre-normalised subtotalEur (set by report-fetch-bills normalization).
-  const sub = bill.subtotalEur
-  if (typeof sub === "number" && Number.isFinite(sub)) return sub
-
-  // Fallback for un-normalized bills: prefer EUR field, then raw (raw is EUR when currency == EUR).
-  const v =
-    bill.type === "cost_partial_business_use"
-      ? (bill.deductibleNetAmountEur ?? bill.deductibleNetAmount)
-      : (bill.amountNetEur ?? bill.amountNet)
-  return typeof v === "number" && Number.isFinite(v) ? v : 0
-}
 
 export function aggregateEurAnnualSummary(
   allDocuments: Array<Record<string, unknown> & { type?: string }>,
@@ -62,10 +48,11 @@ export function aggregateEurAnnualSummary(
 
   let expenseNetEur = 0
   for (const bill of billsForEuer) {
-    expenseNetEur += billSubtotalEur(bill)
+    const net = costNetEurForContext(bill, "euerNet")
+    if (net != null) expenseNetEur += net
   }
 
-  const inputVatEur = sumBillsVatAmountEur(options?.vatBills ?? billsForEuer)
+  const inputVatEur = sumCostsVatEur(options?.vatBills ?? billsForEuer, "vatQuarter")
 
   const extra =
     options?.calendarYear != null

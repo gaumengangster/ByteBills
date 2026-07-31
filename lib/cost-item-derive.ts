@@ -1,4 +1,9 @@
 import { fiscalYearAndQuarterFromYmd } from "@/lib/cost-bill-fiscal"
+import {
+  assignCostReportingPeriods,
+  COST_VAT_EPS,
+  type CostReportingPeriodFields,
+} from "@/lib/cost-reporting-periods"
 import type {
   CostAfa,
   CostInvoice,
@@ -11,7 +16,31 @@ import type {
   VatQuarter,
 } from "@/lib/cost-item-types"
 
-const VAT_EPS = 0.005
+const VAT_EPS = COST_VAT_EPS
+
+function withReportingPeriods<T extends Record<string, unknown>>(
+  item: T,
+  periods: CostReportingPeriodFields,
+  overrides?: {
+    includeInVatQuarter?: boolean
+    includeInAnnualEuer?: boolean
+    isPaymentProofOnly?: boolean
+  },
+): T & CostReportingPeriodFields {
+  const includeInVatQuarter = overrides?.includeInVatQuarter ?? periods.includeInVatQuarter
+  return {
+    ...item,
+    euerYear: periods.euerYear,
+    costYear: periods.costYear,
+    costQuarter: periods.costQuarter,
+    quartal: periods.quartal,
+    includeInVatQuarter,
+    includeInAnnualEuer: overrides?.includeInAnnualEuer ?? periods.includeInAnnualEuer,
+    isPaymentProofOnly: overrides?.isPaymentProofOnly ?? periods.isPaymentProofOnly,
+    vatYear: periods.vatYear,
+    vatQuarter: includeInVatQuarter ? periods.vatQuarter : undefined,
+  }
+}
 
 export function fiscalQuarterToVatQuarter(q: 1 | 2 | 3 | 4): VatQuarter {
   return `Q${q}` as VatQuarter
@@ -215,9 +244,15 @@ export function buildCostItemPayload(params: {
   if (type === "cost_invoice" && params.invoice) {
     const s = params.invoice
     const date = s.expenseDate.slice(0, 10)
-    const rep = invoiceReporting(s.vatDeductible, s.amountVat)
-    const vqm = rep.includeInVatQuarter ? vatQuarterMetaFromYmd(date) : null
-    const item: CostInvoice = {
+    const periods = assignCostReportingPeriods({
+      expenseDateYmd: date,
+      amountVatForReporting: s.amountVat,
+      vatDeductible: s.vatDeductible,
+      includeInAnnualEuer: s.includeInAnnualEuer ?? true,
+      isPaymentProofOnly: s.isPaymentProofOnly ?? false,
+    })
+    const item: CostInvoice = withReportingPeriods(
+      {
       id,
       userId,
       type: "cost_invoice",
@@ -240,12 +275,6 @@ export function buildCostItemPayload(params: {
       createdAt: nowIso,
       updatedAt: nowIso,
       businessUsePercent: 100,
-      includeInVatQuarter: s.includeInVatQuarter ?? rep.includeInVatQuarter,
-      includeInAnnualEuer: s.includeInAnnualEuer ?? rep.includeInAnnualEuer,
-      isPaymentProofOnly: s.isPaymentProofOnly ?? rep.isPaymentProofOnly,
-      vatQuarter: vqm?.vatQuarter,
-      vatYear: vqm?.vatYear,
-      euerYear: euerYearFromYmd(date),
       status: s.paymentStatus === "paid" ? "paid" : s.paymentStatus === "partially_paid" ? "partially_paid" : "saved",
       notes,
       documents,
@@ -258,7 +287,14 @@ export function buildCostItemPayload(params: {
       vatDeductible: s.vatDeductible,
       paymentStatus: s.paymentStatus,
       paymentDate: s.paymentDate,
-    }
+      },
+      periods,
+      {
+        includeInVatQuarter: s.includeInVatQuarter,
+        includeInAnnualEuer: s.includeInAnnualEuer,
+        isPaymentProofOnly: s.isPaymentProofOnly,
+      },
+    )
     return item
   }
 
@@ -271,15 +307,22 @@ export function buildCostItemPayload(params: {
       amountGross: n.amountGross,
       businessUsePercent: n.businessUsePercent,
     })
-    const rep = partialReporting(ded.deductibleVatAmount)
-    const vqm = rep.includeInVatQuarter ? vatQuarterMetaFromYmd(date) : null
+    const deductibleVat = n.deductibleVatAmount ?? ded.deductibleVatAmount
+    const periods = assignCostReportingPeriods({
+      expenseDateYmd: date,
+      amountVatForReporting: deductibleVat,
+      vatDeductible: n.vatDeductible,
+      includeInAnnualEuer: n.includeInAnnualEuer ?? true,
+      isPaymentProofOnly: n.isPaymentProofOnly ?? false,
+    })
     const dedNetEur = isForeign && params.amountNetEur != null
       ? roundMoney(params.amountNetEur * (n.businessUsePercent / 100))
       : undefined
     const dedVatEur = isForeign && params.amountVatEur != null
       ? roundMoney(params.amountVatEur * (n.businessUsePercent / 100))
       : undefined
-    const item: CostPartialBusinessUse = {
+    const item: CostPartialBusinessUse = withReportingPeriods(
+      {
       id,
       userId,
       type: "cost_partial_business_use",
@@ -302,12 +345,6 @@ export function buildCostItemPayload(params: {
       eurRate: isForeign ? params.eurRate : undefined,
       eurRateDate: isForeign ? params.eurRateDate : undefined,
       businessUsePercent: n.businessUsePercent,
-      includeInVatQuarter: n.includeInVatQuarter ?? rep.includeInVatQuarter,
-      includeInAnnualEuer: n.includeInAnnualEuer ?? rep.includeInAnnualEuer,
-      isPaymentProofOnly: n.isPaymentProofOnly ?? rep.isPaymentProofOnly,
-      vatQuarter: vqm?.vatQuarter,
-      vatYear: vqm?.vatYear,
-      euerYear: euerYearFromYmd(date),
       status: "saved",
       notes,
       documents,
@@ -320,21 +357,35 @@ export function buildCostItemPayload(params: {
       invoiceNumber: n.invoiceNumber,
       vatDeductible: n.vatDeductible,
       deductibleNetAmount: n.deductibleNetAmount ?? ded.deductibleNetAmount,
-      deductibleVatAmount: n.deductibleVatAmount ?? ded.deductibleVatAmount,
+      deductibleVatAmount: deductibleVat,
       deductibleGrossAmount: n.deductibleGrossAmount ?? ded.deductibleGrossAmount,
       deductibleNetAmountEur: dedNetEur,
       deductibleVatAmountEur: dedVatEur,
       paymentStatus: n.paymentStatus,
       paymentDate: n.paymentDate,
-    }
+      },
+      periods,
+      {
+        includeInVatQuarter: n.includeInVatQuarter,
+        includeInAnnualEuer: n.includeInAnnualEuer,
+        isPaymentProofOnly: n.isPaymentProofOnly,
+      },
+    )
     return item
   }
 
   if (type === "cost_pauschale" && params.pauschale) {
     const p = params.pauschale
     const date = (p.periodFrom ?? p.periodTo ?? `${new Date().getFullYear()}-01-01`).slice(0, 10)
-    const rep = { includeInVatQuarter: false, includeInAnnualEuer: true, isPaymentProofOnly: false }
-    const item: CostPauschal = {
+    const periods = assignCostReportingPeriods({
+      expenseDateYmd: date,
+      amountVatForReporting: 0,
+      vatDeductible: false,
+      includeInAnnualEuer: p.includeInAnnualEuer ?? true,
+      isPaymentProofOnly: false,
+    })
+    const item: CostPauschal = withReportingPeriods(
+      {
       id,
       userId,
       type: "cost_pauschale",
@@ -348,12 +399,6 @@ export function buildCostItemPayload(params: {
       updatedAt: nowIso,
       amountNet: p.calculatedAmount,
       amountGross: p.calculatedAmount,
-      includeInVatQuarter: p.includeInVatQuarter ?? rep.includeInVatQuarter,
-      includeInAnnualEuer: p.includeInAnnualEuer ?? rep.includeInAnnualEuer,
-      isPaymentProofOnly: p.isPaymentProofOnly ?? rep.isPaymentProofOnly,
-      // vatQuarter intentionally omitted — pauschale never carries VAT
-      vatYear: euerYearFromYmd(date),
-      euerYear: euerYearFromYmd(date),
       notes,
       documents,
       documentStatus: docStatus,
@@ -367,15 +412,27 @@ export function buildCostItemPayload(params: {
       periodFrom: p.periodFrom,
       periodTo: p.periodTo,
       legalNote: p.legalNote,
-    }
+      },
+      periods,
+      {
+        includeInVatQuarter: p.includeInVatQuarter,
+        includeInAnnualEuer: p.includeInAnnualEuer,
+        isPaymentProofOnly: p.isPaymentProofOnly,
+      },
+    )
     return item
   }
 
   if (type === "cost_afa" && params.afa) {
     const a = params.afa
     const purchaseDate = a.purchaseDate.slice(0, 10)
-    const rep = afaReporting(a.amountVat)
-    const vqm = rep.includeInVatQuarter ? vatQuarterMetaFromYmd(purchaseDate) : null
+    const periods = assignCostReportingPeriods({
+      expenseDateYmd: purchaseDate,
+      amountVatForReporting: a.amountVat,
+      vatDeductible: true,
+      includeInAnnualEuer: a.includeInAnnualEuer ?? true,
+      isPaymentProofOnly: a.isPaymentProofOnly ?? false,
+    })
     const annual =
       a.annualDepreciationAmount ??
       (a.usefulLifeYears
@@ -385,7 +442,8 @@ export function buildCostItemPayload(params: {
             usefulLifeYears: a.usefulLifeYears,
           })
         : undefined)
-    const item: CostAfa = {
+    const item: CostAfa = withReportingPeriods(
+      {
       id,
       userId,
       type: "cost_afa",
@@ -408,12 +466,6 @@ export function buildCostItemPayload(params: {
       eurRate: isForeign ? params.eurRate : undefined,
       eurRateDate: isForeign ? params.eurRateDate : undefined,
       businessUsePercent: a.businessUsePercent,
-      includeInVatQuarter: a.includeInVatQuarter ?? rep.includeInVatQuarter,
-      includeInAnnualEuer: a.includeInAnnualEuer ?? rep.includeInAnnualEuer,
-      isPaymentProofOnly: a.isPaymentProofOnly ?? rep.isPaymentProofOnly,
-      vatQuarter: vqm?.vatQuarter,
-      vatYear: vqm?.vatYear,
-      euerYear: euerYearFromYmd(purchaseDate),
       status: "saved",
       notes,
       documents,
@@ -428,7 +480,14 @@ export function buildCostItemPayload(params: {
       annualDepreciationAmount: annual,
       immediateExpenseEligible: a.immediateExpenseEligible,
       hasMultiyearSlices: a.hasMultiyearSlices,
-    }
+      },
+      periods,
+      {
+        includeInVatQuarter: a.includeInVatQuarter,
+        includeInAnnualEuer: a.includeInAnnualEuer,
+        isPaymentProofOnly: a.isPaymentProofOnly,
+      },
+    )
     return item
   }
 

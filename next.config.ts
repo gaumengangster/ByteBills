@@ -13,10 +13,12 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "192.168.178.62",
     "192.168.178.62:3001",
+    "192.168.178.62:4001",
     "192.168.178.*",
     "localhost",
     "localhost:3000",
     "localhost:3001",
+    "localhost:4001",
   ],
   /* config options here */
     images: {

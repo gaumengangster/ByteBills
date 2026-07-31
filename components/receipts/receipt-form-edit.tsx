@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DocumentSettings } from "@/components/document-settings/document-settings"
 import { parseStoredDocumentDate, persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
+import { buildRevenueDocumentEurPersistOrDefer } from "@/lib/revenue-document-eur"
 
 type ReceiptFormEditProps = {
   userId: string
@@ -105,7 +105,7 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
       const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
 
-      const eurPersist = await buildRevenueDocumentEurPersist({
+      const { deferredFx, persist: eurPersist } = await buildRevenueDocumentEurPersistOrDefer({
         db,
         userId,
         kind: "receipt",
@@ -178,20 +178,14 @@ export function ReceiptFormEdit({ userId, companies, receipt, receiptId }: Recei
 
       toast({
         title: "Success",
-        description: `Receipt ${values.receiptNumber} has been updated successfully.`,
+        description: deferredFx
+          ? `Receipt ${values.receiptNumber} has been updated successfully. EUR totals are stored as 0 until BMF rates exist for this month; use Sync exchange rate when ready.`
+          : `Receipt ${values.receiptNumber} has been updated successfully.`,
       })
 
       // Navigate to receipt view
       router.push(`/receipts/${receiptId}`)
     } catch (error) {
-      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
-        toast({
-          title: "Missing exchange rate",
-          description:
-            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
-        })
-        return
-      }
       console.error("Error updating receipt:", error)
       toast({
         title: "Error",

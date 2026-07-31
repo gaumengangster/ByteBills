@@ -58,7 +58,8 @@ function unitsPerEurForCurrency(currency: string, rates: EurReferenceRates): num
   return u
 }
 
-export async function resolveReferenceRatesForRevenueDocument(params: {
+/** Loads BMF month rates from Firestore without throwing when a non-EUR currency is missing. */
+export async function loadReferenceRatesForRevenueDocument(params: {
   db: Firestore
   userId: string
   kind: "invoice" | "receipt"
@@ -74,13 +75,27 @@ export async function resolveReferenceRatesForRevenueDocument(params: {
     params.kind === "invoice" ? params.invoiceTaxDateIso : undefined,
   )
   const monthKey = dateKey && dateKey.length >= 7 ? dateKey.slice(0, 7) : null
-  const cur = (params.currency.trim() || "EUR").toUpperCase()
 
   const rates = await buildFxRateRowFromFirestore({
     db: params.db,
     userId: params.userId,
     monthKey,
   })
+
+  return { rates, monthKey }
+}
+
+export async function resolveReferenceRatesForRevenueDocument(params: {
+  db: Firestore
+  userId: string
+  kind: "invoice" | "receipt"
+  invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
+  receiptDateIso?: string
+  currency: string
+}): Promise<{ rates: EurReferenceRates; monthKey: string | null }> {
+  const { rates, monthKey } = await loadReferenceRatesForRevenueDocument(params)
+  const cur = (params.currency.trim() || "EUR").toUpperCase()
 
   if (cur === "EUR") {
     return { rates, monthKey }
@@ -94,22 +109,35 @@ export async function resolveReferenceRatesForRevenueDocument(params: {
   return { rates, monthKey }
 }
 
-/**
- * Computes persisted EUR fields using Firestore BMF import for the document month.
- */
-export async function buildRevenueDocumentEurPersist(params: {
-  db: Firestore
-  userId: string
-  kind: "invoice" | "receipt"
-  invoiceDateIso?: string
-  invoiceTaxDateIso?: string | null
-  receiptDateIso?: string
-  currency: string
-  subtotal: number
-  tax: number
-  total: number
-  items: RevenueLineItem[]
-}): Promise<RevenueDocumentEurPersist> {
+function nonEurFxRateMissing(currency: string, rates: EurReferenceRates): boolean {
+  const cur = (currency.trim() || "EUR").toUpperCase()
+  if (cur === "EUR") return false
+  const u = rates[cur]
+  return typeof u !== "number" || !Number.isFinite(u) || u <= 0
+}
+
+function normalizeRevenueLineItems(items: RevenueLineItem[]): RevenueLineItem[] {
+  return items.map((item) => ({
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+  }))
+}
+
+function buildRevenueDocumentEurPersistFromRates(
+  params: {
+    kind: "invoice" | "receipt"
+    invoiceDateIso?: string
+    invoiceTaxDateIso?: string | null
+    receiptDateIso?: string
+    currency: string
+    subtotal: number
+    tax: number
+    total: number
+    items: RevenueLineItem[]
+  },
+  rates: EurReferenceRates,
+): RevenueDocumentEurPersist {
   const dateKey = calendarDateKeyFromRevenueDoc(
     params.kind,
     params.kind === "invoice" ? params.invoiceDateIso : undefined,
@@ -117,21 +145,12 @@ export async function buildRevenueDocumentEurPersist(params: {
     params.kind === "invoice" ? params.invoiceTaxDateIso : undefined,
   )
 
-  const { rates } = await resolveReferenceRatesForRevenueDocument({
-    db: params.db,
-    userId: params.userId,
-    kind: params.kind,
-    invoiceDateIso: params.invoiceDateIso,
-    invoiceTaxDateIso: params.invoiceTaxDateIso,
-    receiptDateIso: params.receiptDateIso,
-    currency: params.currency,
-  })
-
   const cur = (params.currency.trim() || "EUR").toUpperCase()
+  const itemsIn = normalizeRevenueLineItems(params.items)
 
   const toEur = (amount: number) => roundMoneyEur(convertAmountToEur(amount, cur, rates))
 
-  const items: Record<string, unknown>[] = params.items.map((item) => {
+  const items: Record<string, unknown>[] = itemsIn.map((item) => {
     const lineTotal = item.quantity * item.unitPrice
     return {
       description: item.description,
@@ -150,6 +169,120 @@ export async function buildRevenueDocumentEurPersist(params: {
     exchangeRateToEur: unitsPerEurForCurrency(cur, rates),
     items,
   }
+}
+
+/** When non-EUR BMF rate is missing: `subtotalEur` / `taxEur` / `totalEur` are 0; line items have no EUR columns. */
+export function revenueDocumentEurPersistDeferredPlainItems(params: {
+  kind: "invoice" | "receipt"
+  invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
+  receiptDateIso?: string
+  currency: string
+  items: RevenueLineItem[]
+}): RevenueDocumentEurPersist {
+  const dateKey = calendarDateKeyFromRevenueDoc(
+    params.kind,
+    params.kind === "invoice" ? params.invoiceDateIso : undefined,
+    params.kind === "receipt" ? params.receiptDateIso : undefined,
+    params.kind === "invoice" ? params.invoiceTaxDateIso : undefined,
+  )
+  const itemsIn = normalizeRevenueLineItems(params.items)
+  const items: Record<string, unknown>[] = itemsIn.map((item) => ({
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+  }))
+
+  return {
+    subtotalEur: 0,
+    taxEur: 0,
+    totalEur: 0,
+    eurRateDate: dateKey,
+    exchangeRateToEur: null,
+    items,
+  }
+}
+
+export type BuildRevenueDocumentEurPersistOrDeferResult = {
+  deferredFx: boolean
+  persist: RevenueDocumentEurPersist
+}
+
+/**
+ * Like `buildRevenueDocumentEurPersist`, but when the document is non-EUR and the BMF rate
+ * for that currency/month is missing, returns EUR totals as 0 and plain line items (no per-line EUR),
+ * instead of throwing.
+ */
+export async function buildRevenueDocumentEurPersistOrDefer(params: {
+  db: Firestore
+  userId: string
+  kind: "invoice" | "receipt"
+  invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
+  receiptDateIso?: string
+  currency: string
+  subtotal: number
+  tax: number
+  total: number
+  items: RevenueLineItem[]
+}): Promise<BuildRevenueDocumentEurPersistOrDeferResult> {
+  const { rates } = await loadReferenceRatesForRevenueDocument({
+    db: params.db,
+    userId: params.userId,
+    kind: params.kind,
+    invoiceDateIso: params.invoiceDateIso,
+    invoiceTaxDateIso: params.invoiceTaxDateIso,
+    receiptDateIso: params.receiptDateIso,
+    currency: params.currency,
+  })
+
+  if (nonEurFxRateMissing(params.currency, rates)) {
+    return {
+      deferredFx: true,
+      persist: revenueDocumentEurPersistDeferredPlainItems({
+        kind: params.kind,
+        invoiceDateIso: params.invoiceDateIso,
+        invoiceTaxDateIso: params.invoiceTaxDateIso,
+        receiptDateIso: params.receiptDateIso,
+        currency: params.currency,
+        items: params.items,
+      }),
+    }
+  }
+
+  return {
+    deferredFx: false,
+    persist: buildRevenueDocumentEurPersistFromRates(params, rates),
+  }
+}
+
+/**
+ * Computes persisted EUR fields using Firestore BMF import for the document month.
+ */
+export async function buildRevenueDocumentEurPersist(params: {
+  db: Firestore
+  userId: string
+  kind: "invoice" | "receipt"
+  invoiceDateIso?: string
+  invoiceTaxDateIso?: string | null
+  receiptDateIso?: string
+  currency: string
+  subtotal: number
+  tax: number
+  total: number
+  items: RevenueLineItem[]
+}): Promise<RevenueDocumentEurPersist> {
+  const { rates } = await resolveReferenceRatesForRevenueDocument({
+    db: params.db,
+    userId: params.userId,
+    kind: params.kind,
+    invoiceDateIso: params.invoiceDateIso,
+    invoiceTaxDateIso: params.invoiceTaxDateIso,
+    receiptDateIso: params.receiptDateIso,
+    currency: params.currency,
+  })
+
+  return buildRevenueDocumentEurPersistFromRates(params, rates)
 }
 
 function eurField(v: unknown): number {

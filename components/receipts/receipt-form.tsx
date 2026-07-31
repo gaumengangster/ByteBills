@@ -31,7 +31,7 @@ import {
 } from "@/lib/receipt-from-invoice"
 import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { salesReceiptReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
+import { buildRevenueDocumentEurPersistOrDefer } from "@/lib/revenue-document-eur"
 
 type ReceiptFormProps = {
   userId: string
@@ -140,7 +140,7 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
 
       const receiptDateYmd = persistDocumentDateYmd(values.receiptDate)
 
-      const eurPersist = await buildRevenueDocumentEurPersist({
+      const { deferredFx, persist: eurPersist } = await buildRevenueDocumentEurPersistOrDefer({
         db,
         userId,
         kind: "receipt",
@@ -226,27 +226,22 @@ export function ReceiptForm({ userId, companies, prefillFromInvoice = null }: Re
         }
       }
 
+      const fxNote = deferredFx
+        ? " EUR totals are stored as 0 until BMF rates exist for this month; use Sync exchange rate when ready."
+        : ""
       toast({
         title: "Receipt created",
         description: prefillFromInvoice?.id
           ? invoiceMarkedPaid
-            ? `Receipt ${values.receiptNumber} was saved and the linked invoice was marked as paid.`
-            : `Receipt ${values.receiptNumber} was saved, but the linked invoice could not be marked as paid. Please update the invoice manually.`
-          : `Receipt ${values.receiptNumber} has been created successfully.`,
+            ? `Receipt ${values.receiptNumber} was saved and the linked invoice was marked as paid.${fxNote}`
+            : `Receipt ${values.receiptNumber} was saved, but the linked invoice could not be marked as paid. Please update the invoice manually.${fxNote}`
+          : `Receipt ${values.receiptNumber} has been created successfully.${fxNote}`,
         variant: prefillFromInvoice?.id && !invoiceMarkedPaid ? "destructive" : undefined,
       })
 
       // Navigate to receipt view
       router.push(`/receipts/${docRef.id}`)
     } catch (error) {
-      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
-        toast({
-          title: "Missing exchange rate",
-          description:
-            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
-        })
-        return
-      }
       console.error("Error creating receipt:", error)
       toast({
         title: "Error",

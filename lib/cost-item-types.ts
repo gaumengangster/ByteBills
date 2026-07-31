@@ -29,6 +29,9 @@ export type CostItemType = z.infer<typeof costItemTypeSchema>
 export const vatQuarterSchema = z.enum(["Q1", "Q2", "Q3", "Q4"])
 export type VatQuarter = z.infer<typeof vatQuarterSchema>
 
+export const reportingQuartalSchema = z.enum(["q1", "q2", "q3", "q4"])
+export type ReportingQuartal = z.infer<typeof reportingQuartalSchema>
+
 export const documentStatusSchema = z.enum(["uploaded", "pending"])
 export type DocumentStatus = z.infer<typeof documentStatusSchema>
 
@@ -128,6 +131,12 @@ const baseFields = {
   includeInVatQuarter: z.boolean(),
   includeInAnnualEuer: z.boolean(),
   isPaymentProofOnly: z.boolean(),
+  /** Calendar quarter label from expense date (`q1`–`q4`); always set on save. */
+  quartal: reportingQuartalSchema.optional(),
+  /** Calendar year of expense date; used for quarter cost reports (Option A). */
+  costYear: z.number().optional(),
+  /** Calendar quarter 1–4 of expense date. */
+  costQuarter: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   vatQuarter: vatQuarterSchema.optional(),
   vatYear: z.number().optional(),
   euerYear: z.number(),

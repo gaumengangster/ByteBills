@@ -16,7 +16,6 @@ import {
   Receipt,
   TruckIcon,
   DollarSign,
-  Users,
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
@@ -24,6 +23,8 @@ import {
   Landmark,
   Wallet,
   ScrollText,
+  ShoppingCart,
+  CircleDollarSign,
 } from "lucide-react"
 import { RevenueChart } from "@/components/reports/revenue-chart"
 import { DocumentsChart } from "@/components/reports/documents-chart"
@@ -38,9 +39,18 @@ import {
 } from "@/lib/elster-quarter"
 import { getElsterReportUi, getEurReportUi, getReportsDashboardUi } from "@/lib/translations"
 import { aggregateEurAnnualSummary, type EurAnnualSummary } from "@/lib/eur-annual-summary"
+import { mergeCostDocsById, sumCostsGrossEur, sumCostsNetEur, sumCostsVatEur } from "@/lib/cost-report-aggregation"
 import { fetchPauschalCostsForUser, fetchAssetsForUser } from "@/lib/fetch-pauschal-assets"
-import { sumBillsVatAmountEur } from "@/lib/report-eur-rates"
-import { fetchBillsInDateRange, fetchBillsForVatPeriod, fetchBillsForEuerYear } from "@/lib/report-fetch-bills"
+import {
+  fetchBillsInDateRange,
+  fetchBillsForCostQuarter,
+  fetchBillsForCostYear,
+  fetchBillsForVatPeriod,
+  fetchBillsForEuerYear,
+  fetchPauschalForCostQuarter,
+  fetchPauschalForCostYear,
+  fetchPauschalInDateRange,
+} from "@/lib/report-fetch-bills"
 import {
   invoiceTaxEurForReport,
   invoiceTotalEurForReport,
@@ -184,6 +194,12 @@ export default function ReportsPage() {
       totalVatSpent: 0,
       previousPeriodVatSpent: 0,
       vatSpentChange: 0,
+      totalCostsNet: 0,
+      previousPeriodCostsNet: 0,
+      costsNetChange: 0,
+      totalCostsGross: 0,
+      previousPeriodCostsGross: 0,
+      costsGrossChange: 0,
     },
     documents: [],
     clients: [],
@@ -319,23 +335,36 @@ export default function ReportsPage() {
         }
 
         const billsInRange = await fetchBillsInDateRange(user.uid, startDate, endDate)
+        const pauschalInRange = await fetchPauschalInDateRange(user.uid, startDate, endDate)
 
-        // For VAT calculations: use vatYear/vatQuarter fields on the document.
-        // For EÜR calculations: use euerYear field on the document.
-        // Fall back to billsInRange (expenseDate) for non-quarter/non-year timeframes.
-        let vatBills: Record<string, unknown>[] = billsInRange
-        let euerBills: Record<string, unknown>[] = billsInRange
+        // VAT spent: includeInVatQuarter + vatYear/vatQuarter.
+        // Dashboard costs: core costs + pauschale (calendar quarter/year or expenseDate range).
+        // EÜR net: euerYear on core costs (AfA purchase net excluded in aggregation).
+        let vatCostDocs: Record<string, unknown>[] = billsInRange
+        let euerCostDocs: Record<string, unknown>[] = billsInRange
+        let coreCostDocs: Record<string, unknown>[] = billsInRange
+        let pauschalCostDocs: Record<string, unknown>[] = pauschalInRange
+        let previousCoreCostDocs: Record<string, unknown>[] = billsInRange
+        let previousPauschalCostDocs: Record<string, unknown>[] = []
         if (quarterMatch) {
           const qYear = parseInt(quarterMatch[1], 10)
           const qNum  = `Q${quarterMatch[2]}` as "Q1" | "Q2" | "Q3" | "Q4"
-          vatBills  = await fetchBillsForVatPeriod(user.uid, qYear, qNum)
-          euerBills = vatBills // quarter view: same set for both
+          ;[vatCostDocs, coreCostDocs, pauschalCostDocs] = await Promise.all([
+            fetchBillsForVatPeriod(user.uid, qYear, qNum),
+            fetchBillsForCostQuarter(user.uid, qYear, qNum),
+            fetchPauschalForCostQuarter(user.uid, qYear, qNum),
+          ])
+          euerCostDocs = vatCostDocs
         } else if (timeframe === "thisYear" || timeframe === "lastYear") {
           const reportYear = getYear(endDate)
-          ;[vatBills, euerBills] = await Promise.all([
+          ;[vatCostDocs, euerCostDocs, coreCostDocs, pauschalCostDocs, previousCoreCostDocs] = await Promise.all([
             fetchBillsForVatPeriod(user.uid, reportYear),
             fetchBillsForEuerYear(user.uid, reportYear),
+            fetchBillsForCostYear(user.uid, reportYear),
+            fetchPauschalForCostYear(user.uid, reportYear),
+            fetchBillsForCostYear(user.uid, reportYear - 1),
           ])
+          previousPauschalCostDocs = await fetchPauschalForCostYear(user.uid, reportYear - 1)
         }
 
         // Fetch previous period data for comparison
@@ -377,6 +406,24 @@ export default function ReportsPage() {
           previousVatBills = await fetchBillsInDateRange(user.uid, previousStartDate, previousEndDate)
         }
         const previousBillsInRange = previousVatBills
+        if (quarterMatch) {
+          const pYear = parseInt(quarterMatch[1], 10) - 1
+          const pNum = `Q${quarterMatch[2]}` as "Q1" | "Q2" | "Q3" | "Q4"
+          ;[previousCoreCostDocs, previousPauschalCostDocs] = await Promise.all([
+            fetchBillsForCostQuarter(user.uid, pYear, pNum),
+            fetchPauschalForCostQuarter(user.uid, pYear, pNum),
+          ])
+        } else if (timeframe !== "thisYear" && timeframe !== "lastYear") {
+          previousCoreCostDocs = previousBillsInRange
+          previousPauschalCostDocs = await fetchPauschalInDateRange(
+            user.uid,
+            previousStartDate,
+            previousEndDate,
+          )
+        }
+
+        const dashboardCostDocs = mergeCostDocsById(coreCostDocs, pauschalCostDocs)
+        const previousDashboardCostDocs = mergeCostDocsById(previousCoreCostDocs, previousPauschalCostDocs)
 
         const bmfYears = new Set<number>()
         for (const doc of allDocuments) {
@@ -545,8 +592,13 @@ export default function ReportsPage() {
           totalVatReceived += invoiceTaxEurForReport(doc as Record<string, unknown>)
         }
 
-        const totalVatSpent = sumBillsVatAmountEur(vatBills)
-        const previousPeriodVatSpent = sumBillsVatAmountEur(previousBillsInRange)
+        const totalVatSpent = sumCostsVatEur(vatCostDocs, "vatQuarter")
+        const previousPeriodVatSpent = sumCostsVatEur(previousBillsInRange, "vatQuarter")
+
+        const totalCostsNet = sumCostsNetEur(dashboardCostDocs, "dashboard")
+        const previousPeriodCostsNet = sumCostsNetEur(previousDashboardCostDocs, "dashboard")
+        const totalCostsGross = sumCostsGrossEur(dashboardCostDocs, "dashboard")
+        const previousPeriodCostsGross = sumCostsGrossEur(previousDashboardCostDocs, "dashboard")
 
         const previousVatSafe = Number.isFinite(previousPeriodVat) ? previousPeriodVat : 0
         const totalVatSafe = Number.isFinite(totalVatReceived) ? totalVatReceived : 0
@@ -566,8 +618,26 @@ export default function ReportsPage() {
               : 100
             : ((totalVatSpentSafe - previousVatSpentSafe) / previousVatSpentSafe) * 100
 
+        const previousCostsNetSafe = Number.isFinite(previousPeriodCostsNet) ? previousPeriodCostsNet : 0
+        const totalCostsNetSafe = Number.isFinite(totalCostsNet) ? totalCostsNet : 0
+        const costsNetChange =
+          previousCostsNetSafe === 0
+            ? totalCostsNetSafe === 0
+              ? 0
+              : 100
+            : ((totalCostsNetSafe - previousCostsNetSafe) / previousCostsNetSafe) * 100
+
+        const previousCostsGrossSafe = Number.isFinite(previousPeriodCostsGross) ? previousPeriodCostsGross : 0
+        const totalCostsGrossSafe = Number.isFinite(totalCostsGross) ? totalCostsGross : 0
+        const costsGrossChange =
+          previousCostsGrossSafe === 0
+            ? totalCostsGrossSafe === 0
+              ? 0
+              : 100
+            : ((totalCostsGrossSafe - previousCostsGrossSafe) / previousCostsGrossSafe) * 100
+
         const elster = quarterMatch
-          ? aggregateElsterQuarterForDocuments(documentsForReport, vatBills)
+          ? aggregateElsterQuarterForDocuments(documentsForReport, vatCostDocs)
           : null
 
         let eur: EurAnnualSummary | null = null
@@ -577,11 +647,11 @@ export default function ReportsPage() {
             fetchAssetsForUser(user.uid),
           ])
           const calendarYear = getYear(endDate)
-          eur = aggregateEurAnnualSummary(documentsForReport, euerBills, {
+          eur = aggregateEurAnnualSummary(documentsForReport, euerCostDocs, {
             calendarYear,
             pauschalDocs,
             assetDocs,
-            vatBills,
+            vatBills: vatCostDocs,
           })
         }
 
@@ -603,6 +673,12 @@ export default function ReportsPage() {
             totalVatSpent: totalVatSpentSafe,
             previousPeriodVatSpent: previousVatSpentSafe,
             vatSpentChange: Number.isFinite(vatSpentChange) ? vatSpentChange : 100,
+            totalCostsNet: totalCostsNetSafe,
+            previousPeriodCostsNet: previousCostsNetSafe,
+            costsNetChange: Number.isFinite(costsNetChange) ? costsNetChange : 100,
+            totalCostsGross: totalCostsGrossSafe,
+            previousPeriodCostsGross: previousCostsGrossSafe,
+            costsGrossChange: Number.isFinite(costsGrossChange) ? costsGrossChange : 100,
           },
           documents: documentsForReport,
           clients: topClients,
@@ -691,62 +767,96 @@ export default function ReportsPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              <StatCard 
-                title={reportsDash.totalRevenueInvoicesTitle} 
-                value={formatEur(reportData.summary.totalRevenue)}
-                icon={<DollarSign className="h-5 w-5" />}
-                change={reportData.summary.revenueChange}
-              />
-              <StatCard
-                title={reportsDash.vatReceivedInvoicesTitle}
-                value={formatEur(reportData.summary.totalVatReceived)}
-                icon={<Percent className="h-5 w-5" />}
-                change={reportData.summary.vatChange}
-                secondaryText={
-                  [
-                    reportsDash.vatReceivedInvoicesSecondary,
-                    (reportData.summary.previousPeriodVat ?? 0) !== 0
-                      ? `Previous: ${formatEur(reportData.summary.previousPeriodVat ?? 0)}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || undefined
-                }
-              />
-              <StatCard
-                title={reportsDash.vatPaidCostsTitle}
-                value={formatEur(reportData.summary.totalVatSpent)}
-                icon={<Wallet className="h-5 w-5" />}
-                change={reportData.summary.vatSpentChange}
-                secondaryText={
-                  [
-                    reportsDash.vatPaidCostsSecondary,
-                    (reportData.summary.previousPeriodVatSpent ?? 0) !== 0
-                      ? `Previous: ${formatEur(reportData.summary.previousPeriodVatSpent ?? 0)}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || undefined
-                }
-              />
-              <StatCard 
-                title="Total Documents" 
-                value={reportData.summary.totalDocuments.toString()}
-                icon={<FileText className="h-5 w-5" />}
-                change={reportData.summary.documentsChange}
-              />
-              <StatCard 
-                title="Unique Clients" 
-                value={reportData.summary.totalClients.toString()}
-                icon={<Users className="h-5 w-5" />}
-              />
-              <StatCard
-                title="Average invoice"
-                value={formatEur(reportData.summary.averageValue)}
-                icon={<Calculator className="h-5 w-5" />}
-                secondaryText="EUR per invoice in period"
-              />
+            <div className="space-y-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <StatCard
+                  title={reportsDash.totalRevenueInvoicesTitle}
+                  value={formatEur(reportData.summary.totalRevenue)}
+                  icon={<DollarSign className="h-5 w-5" />}
+                  change={reportData.summary.revenueChange}
+                />
+                <StatCard
+                  title={reportsDash.vatReceivedInvoicesTitle}
+                  value={formatEur(reportData.summary.totalVatReceived)}
+                  icon={<Percent className="h-5 w-5" />}
+                  change={reportData.summary.vatChange}
+                  secondaryText={
+                    [
+                      reportsDash.vatReceivedInvoicesSecondary,
+                      (reportData.summary.previousPeriodVat ?? 0) !== 0
+                        ? `Previous: ${formatEur(reportData.summary.previousPeriodVat ?? 0)}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                />
+                <StatCard
+                  title="Average invoice"
+                  value={formatEur(reportData.summary.averageValue)}
+                  icon={<Calculator className="h-5 w-5" />}
+                  secondaryText={reportsDash.averageInvoiceSecondary}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <StatCard
+                  title={reportsDash.totalCostsGrossTitle}
+                  value={formatEur(reportData.summary.totalCostsGross)}
+                  icon={<CircleDollarSign className="h-5 w-5" />}
+                  change={reportData.summary.costsGrossChange}
+                  secondaryText={
+                    [
+                      reportsDash.totalCostsGrossSecondary,
+                      (reportData.summary.previousPeriodCostsGross ?? 0) !== 0
+                        ? `Previous: ${formatEur(reportData.summary.previousPeriodCostsGross ?? 0)}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                />
+                <StatCard
+                  title={reportsDash.totalCostsVatTitle}
+                  value={formatEur(reportData.summary.totalVatSpent)}
+                  icon={<Wallet className="h-5 w-5" />}
+                  change={reportData.summary.vatSpentChange}
+                  secondaryText={
+                    [
+                      reportsDash.totalCostsVatSecondary,
+                      (reportData.summary.previousPeriodVatSpent ?? 0) !== 0
+                        ? `Previous: ${formatEur(reportData.summary.previousPeriodVatSpent ?? 0)}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                />
+                <StatCard
+                  title={reportsDash.totalCostsNetTitle}
+                  value={formatEur(reportData.summary.totalCostsNet)}
+                  icon={<ShoppingCart className="h-5 w-5" />}
+                  change={reportData.summary.costsNetChange}
+                  secondaryText={
+                    [
+                      reportsDash.totalCostsNetSecondary,
+                      (reportData.summary.previousPeriodCostsNet ?? 0) !== 0
+                        ? `Previous: ${formatEur(reportData.summary.previousPeriodCostsNet ?? 0)}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <StatCard
+                  title={reportsDash.totalInvoicesTitle}
+                  value={String(reportData.summary.invoicesCount ?? 0)}
+                  icon={<FileText className="h-5 w-5" />}
+                />
+              </div>
             </div>
 
             {isQuarterTimeframe && reportData.elster ? (

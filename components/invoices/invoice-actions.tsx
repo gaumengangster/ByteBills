@@ -14,6 +14,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { doc, deleteDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { revenueDocNeedsFxSync, syncRevenueDocumentFx } from "@/lib/sync-revenue-document-fx"
 import {
   ArrowLeft,
   CloudUpload,
@@ -23,6 +24,7 @@ import {
   Share2,
   Trash2,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
@@ -59,6 +61,9 @@ export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh, comp
   const [isUploadingDrive, setIsUploadingDrive] = useState(false)
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isSyncingFx, setIsSyncingFx] = useState(false)
+
+  const showSyncExchangeRate = useMemo(() => revenueDocNeedsFxSync(invoice as Record<string, unknown>), [invoice])
 
   const invoiceDeleteDriveWarning = useMemo(
     () =>
@@ -161,6 +166,54 @@ export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh, comp
     }
   }
 
+  const handleSyncExchangeRate = async () => {
+    const uid = typeof invoice.userId === "string" ? invoice.userId : ""
+    if (!uid) {
+      toast({ title: "Error", description: "Missing user on invoice.", variant: "destructive" })
+      return
+    }
+    setIsSyncingFx(true)
+    try {
+      const result = await syncRevenueDocumentFx({
+        db,
+        userId: uid,
+        collection: "invoices",
+        docId: invoice.id,
+      })
+      if (!result.ok) {
+        if (result.reason === "missing_fx") {
+          toast({
+            title: "Missing exchange rate",
+            description:
+              "Import the BMF CSV for this document’s month on Exchange rates, then try again.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Sync failed",
+            description: "Could not update EUR amounts. Check the document and try again.",
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      if (result.skipped) {
+        toast({
+          title: "Already synced",
+          description: "EUR amounts and FX rate are already set for this invoice.",
+        })
+        return
+      }
+      toast({ title: "Synced", description: "EUR amounts were updated from BMF rates." })
+      await onInvoiceRefresh?.()
+    } catch (e) {
+      console.error(e)
+      toast({ title: "Error", description: "Sync failed unexpectedly.", variant: "destructive" })
+    } finally {
+      setIsSyncingFx(false)
+    }
+  }
+
   return (
     <>
       <div className="flex gap-2">
@@ -210,6 +263,22 @@ export function InvoiceActions({ invoice, onStatusChange, onInvoiceRefresh, comp
           <Share2 className="mr-2 h-4 w-4" />
           Share
         </Button>
+
+        {showSyncExchangeRate ? (
+          <Button variant="outline" onClick={() => void handleSyncExchangeRate()} disabled={isSyncingFx}>
+            {isSyncingFx ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Syncing…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Sync exchange rate
+              </>
+            )}
+          </Button>
+        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

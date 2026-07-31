@@ -57,6 +57,7 @@ export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[])
     country?: string
     email?: string
     phone?: string
+    taxNumber?: string
   }
   pdf.text(String(cd.name ?? ""), rightMargin, companyY, { align: "right" })
 
@@ -83,6 +84,11 @@ export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[])
 
   if (cd.email) {
     pdf.text(cd.email, rightMargin, companyDetailY, { align: "right" })
+    companyDetailY += 4
+  }
+
+  if (cd.taxNumber?.trim()) {
+    pdf.text(`${t.issuerVatTaxNumber}: ${cd.taxNumber.trim()}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 

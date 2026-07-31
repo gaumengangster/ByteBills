@@ -60,6 +60,7 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
+          taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
           bankName: selectedCompany?.businessDetails?.bankName || "",
           iban: selectedCompany?.businessDetails?.iban || "",
           swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
@@ -135,6 +136,11 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                     </div>
                   )}
                   {selectedCompany.businessDetails?.email && <div>{selectedCompany.businessDetails.email}</div>}
+                  {selectedCompany.businessDetails?.taxNumber?.trim() && (
+                    <div>
+                      VAT No.: {selectedCompany.businessDetails.taxNumber.trim()}
+                    </div>
+                  )}
                   {selectedCompany.businessDetails?.phone && <div>{selectedCompany.businessDetails.phone}</div>}
                 </div>
               </div>
@@ -150,8 +156,12 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   )}
                   {invoiceData.clientPhone && <div className="text-muted-foreground">{invoiceData.clientPhone}</div>}
                   {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientEmail}</div>}
-                  {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientRegistrationNumber}</div>}
-                  {invoiceData.clientEmail && <div className="text-muted-foreground">{invoiceData.clientVatNumber}</div>}
+                  {invoiceData.clientRegistrationNumber && (
+                    <div className="text-muted-foreground">{invoiceData.clientRegistrationNumber}</div>
+                  )}
+                  {invoiceData.clientVatNumber && (
+                    <div className="text-muted-foreground">{invoiceData.clientVatNumber}</div>
+                  )}
                 </div>
               </div>
 

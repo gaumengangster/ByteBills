@@ -379,6 +379,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
 
+                  {typeof displayCompany.taxNumber === "string" && displayCompany.taxNumber.trim() ? (
+                    <div className="flex items-start">
+                      <span className="text-sm text-muted-foreground mr-2 shrink-0 pt-0.5">VAT No.:</span>
+                      <span>{displayCompany.taxNumber.trim()}</span>
+                    </div>
+                  ) : null}
+
                   {displayCompany.phone && (
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -442,6 +449,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
                   {displayCompany.email && <div>{displayCompany.email}</div>}
+                  {typeof displayCompany.taxNumber === "string" && displayCompany.taxNumber.trim() ? (
+                    <div>VAT No.: {String(displayCompany.taxNumber).trim()}</div>
+                  ) : null}
                   {displayCompany.phone && <div>{displayCompany.phone}</div>}
                 </div>
               </div>
@@ -457,8 +467,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {invoice.clientDetails.phone && <div className="text-gray-600">{invoice.clientDetails.phone}</div>}
                   {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.email}</div>}
-                  {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.registrationNumber}</div>}
-                  {invoice.clientDetails.email && <div className="text-gray-600">{invoice.clientDetails.vatNumber}</div>}
+                  {invoice.clientDetails.registrationNumber && (
+                    <div className="text-gray-600">{invoice.clientDetails.registrationNumber}</div>
+                  )}
+                  {invoice.clientDetails.vatNumber && (
+                    <div className="text-gray-600">{invoice.clientDetails.vatNumber}</div>
+                  )}
                 </div>
               </div>
             </div>

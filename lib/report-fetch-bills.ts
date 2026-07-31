@@ -7,13 +7,19 @@ import {
   where,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { costQuarterMatchesFilter } from "@/lib/cost-reporting-periods"
 
 const PAGE_SIZE = 500
 
 // cost_afa is included here only for its VAT (Vorsteuer).
 // The net/depreciation amount is handled separately via fetchAssetsForUser → AssetDepreciation,
-// so subtotalEur is set to 0 for cost_afa to avoid double-counting in EÜR.
-const VAT_COLLECTIONS = ["cost_invoice", "cost_partial_business_use", "cost_afa"] as const
+// so purchase net is excluded from EÜR net via cost-report-aggregation (euerNet context).
+const CORE_COST_COLLECTIONS = ["cost_invoice", "cost_partial_business_use", "cost_afa"] as const
+const PAUSCHALE_COLLECTION = "cost_pauschale"
+
+function docWithId(id: string, data: Record<string, unknown>): Record<string, unknown> {
+  return { id, ...data }
+}
 
 /**
  * Fetch cost bills for a specific VAT year (and optionally quarter).
@@ -27,7 +33,7 @@ export async function fetchBillsForVatPeriod(
 ): Promise<Record<string, unknown>[]> {
   const byId = new Map<string, Record<string, unknown>>()
   await Promise.all(
-    VAT_COLLECTIONS.map(async (col) => {
+    CORE_COST_COLLECTIONS.map(async (col) => {
       const snap = await getDocs(
         query(
           collection(db, col),
@@ -38,8 +44,9 @@ export async function fetchBillsForVatPeriod(
       )
       for (const docSnap of snap.docs) {
         const data = docSnap.data() as Record<string, unknown>
+        if (data.includeInVatQuarter !== true) continue
         if (quarter && data.vatQuarter !== quarter) continue
-        byId.set(docSnap.id, normalizeBillForReporting(data))
+        byId.set(docSnap.id, docWithId(docSnap.id, data))
       }
     }),
   )
@@ -57,7 +64,7 @@ export async function fetchBillsForEuerYear(
 ): Promise<Record<string, unknown>[]> {
   const byId = new Map<string, Record<string, unknown>>()
   await Promise.all(
-    VAT_COLLECTIONS.map(async (col) => {
+    CORE_COST_COLLECTIONS.map(async (col) => {
       const snap = await getDocs(
         query(
           collection(db, col),
@@ -68,7 +75,7 @@ export async function fetchBillsForEuerYear(
       )
       for (const docSnap of snap.docs) {
         const data = docSnap.data() as Record<string, unknown>
-        byId.set(docSnap.id, normalizeBillForReporting(data))
+        byId.set(docSnap.id, docWithId(docSnap.id, data))
       }
     }),
   )
@@ -76,8 +83,99 @@ export async function fetchBillsForEuerYear(
 }
 
 /**
- * Fetch cost_invoice and cost_partial_business_use records in a date range,
- * normalised to the legacy "bill" shape expected by the reporting layer.
+ * All supplier costs in a calendar quarter (Option A): uses `costYear` / `costQuarter`
+ * so 0-VAT costs are included alongside VAT costs.
+ */
+export async function fetchBillsForCostQuarter(
+  userId: string,
+  year: number,
+  quarter: "Q1" | "Q2" | "Q3" | "Q4",
+): Promise<Record<string, unknown>[]> {
+  const byId = new Map<string, Record<string, unknown>>()
+  await Promise.all(
+    CORE_COST_COLLECTIONS.map(async (col) => {
+      const snap = await getDocs(
+        query(
+          collection(db, col),
+          where("userId", "==", userId),
+          where("costYear", "==", year),
+          limit(PAGE_SIZE),
+        ),
+      )
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data() as Record<string, unknown>
+        if (!costQuarterMatchesFilter(data, year, quarter)) continue
+        byId.set(docSnap.id, docWithId(docSnap.id, data))
+      }
+    }),
+  )
+  return [...byId.values()]
+}
+
+/**
+ * All supplier costs in a calendar year (by `costYear`), any VAT amount.
+ */
+export async function fetchBillsForCostYear(
+  userId: string,
+  year: number,
+): Promise<Record<string, unknown>[]> {
+  const byId = new Map<string, Record<string, unknown>>()
+  await Promise.all(
+    CORE_COST_COLLECTIONS.map(async (col) => {
+      const snap = await getDocs(
+        query(
+          collection(db, col),
+          where("userId", "==", userId),
+          where("costYear", "==", year),
+          limit(PAGE_SIZE),
+        ),
+      )
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data() as Record<string, unknown>
+        byId.set(docSnap.id, docWithId(docSnap.id, data))
+      }
+    }),
+  )
+  return [...byId.values()]
+}
+
+/** Pauschale costs in a calendar year (dashboard totals). */
+export async function fetchPauschalForCostYear(
+  userId: string,
+  year: number,
+): Promise<Record<string, unknown>[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, PAUSCHALE_COLLECTION),
+      where("userId", "==", userId),
+      where("costYear", "==", year),
+      limit(PAGE_SIZE),
+    ),
+  )
+  return snap.docs.map((d) => docWithId(d.id, d.data() as Record<string, unknown>))
+}
+
+/** Pauschale costs in a calendar quarter (dashboard totals). */
+export async function fetchPauschalForCostQuarter(
+  userId: string,
+  year: number,
+  quarter: "Q1" | "Q2" | "Q3" | "Q4",
+): Promise<Record<string, unknown>[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, PAUSCHALE_COLLECTION),
+      where("userId", "==", userId),
+      where("costYear", "==", year),
+      limit(PAGE_SIZE),
+    ),
+  )
+  return snap.docs
+    .map((d) => docWithId(d.id, d.data() as Record<string, unknown>))
+    .filter((data) => costQuarterMatchesFilter(data, year, quarter))
+}
+
+/**
+ * Fetch cost_invoice, cost_partial_business_use, and cost_afa in a date range.
  * Used for chart/dashboard views where the expense date is the right axis.
  */
 export async function fetchBillsInDateRange(
@@ -86,10 +184,10 @@ export async function fetchBillsInDateRange(
   end: Date,
 ): Promise<Record<string, unknown>[]> {
   const startYmd = format(start, "yyyy-MM-dd")
-  const endYmd   = format(end,   "yyyy-MM-dd")
+  const endYmd = format(end, "yyyy-MM-dd")
 
   const inRange = (data: Record<string, unknown>): boolean => {
-    const d = (data.expenseDate ?? data.billDate) as string | undefined
+    const d = data.expenseDate as string | undefined
     if (!d) return false
     const key = d.slice(0, 10)
     return key >= startYmd && key <= endYmd
@@ -98,7 +196,7 @@ export async function fetchBillsInDateRange(
   const byId = new Map<string, Record<string, unknown>>()
 
   await Promise.all(
-    VAT_COLLECTIONS.map(async (col) => {
+    CORE_COST_COLLECTIONS.map(async (col) => {
       const snap = await getDocs(
         query(
           collection(db, col),
@@ -111,7 +209,7 @@ export async function fetchBillsInDateRange(
       for (const docSnap of snap.docs) {
         const data = docSnap.data() as Record<string, unknown>
         if (!inRange(data)) continue
-        byId.set(docSnap.id, normalizeBillForReporting(data))
+        byId.set(docSnap.id, docWithId(docSnap.id, data))
       }
     }),
   )
@@ -119,41 +217,24 @@ export async function fetchBillsInDateRange(
   return [...byId.values()]
 }
 
-/**
- * Map new cost entity fields to the legacy reporting shape so that
- * sumBillsVatAmountEur, billSubtotalEur, billContributesInputVat etc. work
- * without changes.
- */
-function normalizeBillForReporting(data: Record<string, unknown>): Record<string, unknown> {
-  const type = data.type as string | undefined
+/** Pauschale costs in an expense-date range (dashboard totals). */
+export async function fetchPauschalInDateRange(
+  userId: string,
+  start: Date,
+  end: Date,
+): Promise<Record<string, unknown>[]> {
+  const startYmd = format(start, "yyyy-MM-dd")
+  const endYmd = format(end, "yyyy-MM-dd")
 
-  // Net expense for EÜR:
-  //  cost_invoice             → EUR net (amountNetEur if foreign currency, else amountNet)
-  //  cost_partial_business_use → only the deductible (business-use) portion
-  //  cost_afa                 → 0 here (net is handled by the depreciation path)
-  const subtotalEur =
-    type === "cost_afa"
-      ? 0
-      : type === "cost_partial_business_use"
-        ? ((data.deductibleNetAmountEur ?? data.deductibleNetAmount) as number | undefined) ?? 0
-        : ((data.amountNetEur ?? data.amountNet) as number | undefined) ?? 0
+  const snap = await getDocs(
+    query(
+      collection(db, PAUSCHALE_COLLECTION),
+      where("userId", "==", userId),
+      where("expenseDate", ">=", startYmd),
+      where("expenseDate", "<=", endYmd),
+      limit(PAGE_SIZE),
+    ),
+  )
 
-  // Input VAT for Vorsteuer:
-  //  cost_invoice             → EUR vat (amountVatEur if foreign currency, else amountVat)
-  //  cost_partial_business_use → deductible portion only (EUR if foreign currency)
-  //  cost_afa                 → full amountVat (claimed in full in purchase quarter)
-  const vatAmountEur =
-    type === "cost_partial_business_use"
-      ? ((data.deductibleVatAmountEur ?? data.deductibleVatAmount) as number | undefined) ?? 0
-      : ((data.amountVatEur ?? data.amountVat) as number | undefined) ?? 0
-
-  return {
-    ...data,
-    // legacy field aliases
-    billDate:            data.expenseDate ?? data.billDate,
-    subtotalEur,
-    vatAmountEur,
-    // euerExpenseCategory maps directly from `category` (same concept)
-    euerExpenseCategory: data.category ?? data.euerExpenseCategory,
-  }
+  return snap.docs.map((d) => docWithId(d.id, d.data() as Record<string, unknown>))
 }

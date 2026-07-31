@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import { generateNextDocumentNumber } from "@/lib/document-number"
 import { persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { quartalAndYearFromYmd, revenueDocumentReportingFlags } from "@/lib/reporting-flags"
-import { buildRevenueDocumentEurPersist, REVENUE_FX_RATE_MISSING } from "@/lib/revenue-document-eur"
+import { buildRevenueDocumentEurPersistOrDefer } from "@/lib/revenue-document-eur"
 
 type InvoiceFormProps = {
   userId: string
@@ -124,7 +124,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
       const taxPeriodMeta = quartalAndYearFromYmd(taxDateYmd)
       const euerYear = taxPeriodMeta?.year ?? parseInt(invoiceDateYmd.slice(0, 4), 10)
 
-      const eurPersist = await buildRevenueDocumentEurPersist({
+      const { deferredFx, persist: eurPersist } = await buildRevenueDocumentEurPersistOrDefer({
         db,
         userId,
         kind: "invoice",
@@ -152,6 +152,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
           country: selectedCompany?.businessDetails?.country || "",
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
+          taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
           logo: selectedCompany?.logo || null,
           bankName: selectedCompany?.businessDetails?.bankName || "",
           iban: selectedCompany?.businessDetails?.iban || "",
@@ -201,20 +202,14 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
 
       toast({
         title: "Success",
-        description: `Invoice ${values.invoiceNumber} has been created successfully.`,
+        description: deferredFx
+          ? `Invoice ${values.invoiceNumber} has been created successfully. EUR totals are stored as 0 until BMF rates exist for this month; use Sync exchange rate when ready.`
+          : `Invoice ${values.invoiceNumber} has been created successfully.`,
       })
 
       // Navigate to invoice view
       router.push(`/invoices/${docRef.id}`)
     } catch (error) {
-      if (error instanceof Error && error.message === REVENUE_FX_RATE_MISSING) {
-        toast({
-          title: "Missing exchange rate",
-          description:
-            "Import the BMF CSV for this document’s month on Exchange rates (Firestore).",
-        })
-        return
-      }
       console.error("Error creating invoice:", error)
       toast({
         title: "Error",

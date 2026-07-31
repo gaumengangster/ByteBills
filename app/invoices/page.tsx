@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { collection, query, where, getDocs, getDoc, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import {
   AlertDialog,
@@ -43,6 +43,7 @@ import {
   CloudUpload,
   Share2,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { ShareInvoiceDialog } from "@/components/invoices/share-invoice-dialog"
 import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
@@ -60,6 +61,15 @@ import {
   listDocumentEurRow,
   normalizeListCurrency,
 } from "@/lib/document-list-eur"
+import { revenueDocNeedsFxSync, syncRevenueDocumentFx } from "@/lib/sync-revenue-document-fx"
+import {
+  DEFAULT_INVOICE_LIST_SORT_DIR,
+  DEFAULT_INVOICE_LIST_SORT_KEY,
+  INVOICE_LIST_SORT_OPTIONS,
+  type InvoiceListSortDir,
+  type InvoiceListSortKey,
+  sortInvoiceList,
+} from "@/lib/invoice-list-sort"
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth()
@@ -69,6 +79,8 @@ export default function InvoicesPage() {
   const [loadingInvoices, setLoadingInvoices] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [sortKey, setSortKey] = useState<InvoiceListSortKey>(DEFAULT_INVOICE_LIST_SORT_KEY)
+  const [sortDir, setSortDir] = useState<InvoiceListSortDir>(DEFAULT_INVOICE_LIST_SORT_DIR)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
   const invoiceDeleteDriveWarning = useMemo(() => {
@@ -81,6 +93,7 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
   const [uploadingDriveId, setUploadingDriveId] = useState<string | null>(null)
+  const [syncingFxId, setSyncingFxId] = useState<string | null>(null)
   const [companies, setCompanies] = useState<any[]>([])
 
   useEffect(() => {
@@ -103,7 +116,7 @@ export default function InvoicesPage() {
       if (!user) return
 
       try {
-        const q = query(collection(db, "invoices"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))
+        const q = query(collection(db, "invoices"), where("userId", "==", user.uid))
 
         const querySnapshot = await getDocs(q)
         const invoiceData = querySnapshot.docs.map((doc) => ({
@@ -145,8 +158,10 @@ export default function InvoicesPage() {
       )
     }
 
+    result = sortInvoiceList(result, sortKey, sortDir)
+
     setFilteredInvoices(result)
-  }, [invoices, statusFilter, searchQuery])
+  }, [invoices, statusFilter, searchQuery, sortKey, sortDir])
 
   const handleStatusChange = async (invoiceId: string, newStatus: string) => {
     try {
@@ -295,6 +310,54 @@ export default function InvoicesPage() {
     setIsShareDialogOpen(true)
   }
 
+  const handleSyncExchangeRate = async (invoice: any) => {
+    if (!user) return
+    setSyncingFxId(invoice.id)
+    try {
+      const result = await syncRevenueDocumentFx({
+        db,
+        userId: user.uid,
+        collection: "invoices",
+        docId: invoice.id,
+      })
+      if (!result.ok) {
+        if (result.reason === "missing_fx") {
+          toast({
+            title: "Missing exchange rate",
+            description:
+              "Import the BMF CSV for this document’s month on Exchange rates, then try again.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Sync failed",
+            description: "Could not update EUR amounts.",
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      if (result.skipped) {
+        toast({
+          title: "Already synced",
+          description: "EUR amounts are already set for this invoice.",
+        })
+        return
+      }
+      const snap = await getDoc(doc(db, "invoices", invoice.id))
+      if (snap.exists()) {
+        const next = { id: snap.id, ...snap.data() }
+        setInvoices((prev) => prev.map((i) => (i.id === invoice.id ? next : i)))
+      }
+      toast({ title: "Synced", description: "EUR amounts were updated from BMF rates." })
+    } catch (e) {
+      console.error(e)
+      toast({ title: "Error", description: "Sync failed unexpectedly.", variant: "destructive" })
+    } finally {
+      setSyncingFxId(null)
+    }
+  }
+
   const hasNonEurInView = filteredInvoices.some(
     (inv) => normalizeListCurrency(inv.currency) !== "EUR",
   )
@@ -339,35 +402,65 @@ export default function InvoicesPage() {
         <Card className="mb-8">
           <CardHeader className="pb-2">
             <CardTitle>Filters</CardTitle>
-            <CardDescription>Filter and search your invoices</CardDescription>
+            <CardDescription>Filter, search, and sort your invoices</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by invoice number or client..."
-                    className="pl-8"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by invoice number or client..."
+                      className="pl-8"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="w-full md:w-[200px]">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="w-full md:w-[200px]">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="w-full sm:flex-1 sm:max-w-[220px]">
+                  <Select value={sortKey} onValueChange={(v) => setSortKey(v as InvoiceListSortKey)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INVOICE_LIST_SORT_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[180px]">
+                  <Select value={sortDir} onValueChange={(v) => setSortDir(v as InvoiceListSortDir)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Order" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="desc">Descending</SelectItem>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -513,6 +606,24 @@ export default function InvoicesPage() {
                             <Share2 className="mr-2 h-4 w-4" />
                             Share
                           </DropdownMenuItem>
+                          {revenueDocNeedsFxSync(invoice as Record<string, unknown>) ? (
+                            <DropdownMenuItem
+                              onClick={() => void handleSyncExchangeRate(invoice)}
+                              disabled={syncingFxId === invoice.id}
+                            >
+                              {syncingFxId === invoice.id ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Syncing…
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  Sync exchange rate
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          ) : null}
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel>Status</DropdownMenuLabel>
                           <DropdownMenuItem

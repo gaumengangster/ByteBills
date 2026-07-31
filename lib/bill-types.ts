@@ -29,7 +29,7 @@ export const extractedBillSchema = z.object({
 
 export type ExtractedBillData = z.infer<typeof extractedBillSchema>
 
-/** Stored on Firestore `bills` for supplier costs. `manual` = no attachment (e.g. home office, mileage log). Persisted `billDate` is always `yyyy-MM-dd` (never null). */
+/** Stored on Firestore `bills` for supplier costs (legacy collection). New costs use `cost_*` collections — see `cost-item-types.ts`. `manual` = no attachment (e.g. home office, mileage log). Persisted `billDate` is always `yyyy-MM-dd` (never null). */
 export type CostExpenseDocumentType =
   | "invoice"
   | "receipt"

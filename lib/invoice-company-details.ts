@@ -37,5 +37,6 @@ export function mergeInvoiceCompanyDetailsFromCompany(
     iban: pick("iban"),
     swiftBic: pick("swiftBic"),
     bankAddress: pick("bankAddress"),
+    taxNumber: pick("taxNumber"),
   }
 }

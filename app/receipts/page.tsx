@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { collection, query, where, getDocs, orderBy, doc, deleteDoc, updateDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import {
   AlertDialog,
@@ -41,6 +41,7 @@ import {
   Search,
   Trash2,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { downloadReceiptPDF, generateReceiptPDF } from "@/lib/receipt-pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
@@ -57,6 +58,7 @@ import {
   listDocumentEurRow,
   normalizeListCurrency,
 } from "@/lib/document-list-eur"
+import { revenueDocNeedsFxSync, syncRevenueDocumentFx } from "@/lib/sync-revenue-document-fx"
 
 export default function ReceiptsPage() {
   const { user, loading } = useAuth()
@@ -76,6 +78,7 @@ export default function ReceiptsPage() {
   }, [receiptToDelete, receipts])
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
   const [uploadingDriveId, setUploadingDriveId] = useState<string | null>(null)
+  const [syncingFxId, setSyncingFxId] = useState<string | null>(null)
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/login")
@@ -242,6 +245,54 @@ export default function ReceiptsPage() {
       })
     } finally {
       setUploadingDriveId(null)
+    }
+  }
+
+  const handleSyncExchangeRate = async (receipt: any) => {
+    if (!user) return
+    setSyncingFxId(receipt.id)
+    try {
+      const result = await syncRevenueDocumentFx({
+        db,
+        userId: user.uid,
+        collection: "receipts",
+        docId: receipt.id,
+      })
+      if (!result.ok) {
+        if (result.reason === "missing_fx") {
+          toast({
+            title: "Missing exchange rate",
+            description:
+              "Import the BMF CSV for this document’s month on Exchange rates, then try again.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Sync failed",
+            description: "Could not update EUR amounts.",
+            variant: "destructive",
+          })
+        }
+        return
+      }
+      if (result.skipped) {
+        toast({
+          title: "Already synced",
+          description: "EUR amounts are already set for this receipt.",
+        })
+        return
+      }
+      const snap = await getDoc(doc(db, "receipts", receipt.id))
+      if (snap.exists()) {
+        const next = { id: snap.id, ...snap.data() }
+        setReceipts((prev) => prev.map((r) => (r.id === receipt.id ? next : r)))
+      }
+      toast({ title: "Synced", description: "EUR amounts were updated from BMF rates." })
+    } catch (e) {
+      console.error(e)
+      toast({ title: "Error", description: "Sync failed unexpectedly.", variant: "destructive" })
+    } finally {
+      setSyncingFxId(null)
     }
   }
 
@@ -454,6 +505,24 @@ export default function ReceiptsPage() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
+                          {revenueDocNeedsFxSync(receipt as Record<string, unknown>) ? (
+                            <DropdownMenuItem
+                              onClick={() => void handleSyncExchangeRate(receipt)}
+                              disabled={syncingFxId === receipt.id}
+                            >
+                              {syncingFxId === receipt.id ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Syncing…
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  Sync exchange rate
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          ) : null}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => confirmDelete(receipt.id)} className="text-red-600">
                             <Trash2 className="mr-2 h-4 w-4" />
