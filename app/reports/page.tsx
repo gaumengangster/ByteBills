@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -37,16 +39,13 @@ import {
   type ElsterQuarterSummary,
   type ElsterZmRow,
 } from "@/lib/elster-quarter"
-import { getElsterReportUi, getEurReportUi, getReportsDashboardUi } from "@/lib/translations"
-import { aggregateEurAnnualSummary, type EurAnnualSummary } from "@/lib/eur-annual-summary"
+import { getElsterReportUi, getReportsDashboardUi } from "@/lib/translations"
 import { mergeCostDocsById, sumCostsGrossEur, sumCostsNetEur, sumCostsVatEur } from "@/lib/cost-report-aggregation"
-import { fetchPauschalCostsForUser, fetchAssetsForUser } from "@/lib/fetch-pauschal-assets"
 import {
   fetchBillsInDateRange,
   fetchBillsForCostQuarter,
   fetchBillsForCostYear,
   fetchBillsForVatPeriod,
-  fetchBillsForEuerYear,
   fetchPauschalForCostQuarter,
   fetchPauschalForCostYear,
   fetchPauschalInDateRange,
@@ -168,12 +167,7 @@ export default function ReportsPage() {
   const last4Quarters = useMemo(() => getLast4QuartersFromNow(), [])
   /** True only when the period dropdown is a calendar quarter (`YYYY-Qn`), not "Last 30 days" etc. */
   const isQuarterTimeframe = useMemo(() => QUARTER_TF.test(timeframe), [timeframe])
-  const isYearTimeframe = useMemo(
-    () => timeframe === "thisYear" || timeframe === "lastYear",
-    [timeframe],
-  )
   const elsterUi = useMemo(() => getElsterReportUi("en"), [])
-  const eurUi = useMemo(() => getEurReportUi("en"), [])
   const reportsDash = useMemo(() => getReportsDashboardUi("en"), [])
   const [loadingData, setLoadingData] = useState(true)
   const [reportData, setReportData] = useState<any>({
@@ -204,7 +198,6 @@ export default function ReportsPage() {
     documents: [],
     clients: [],
     elster: null as ElsterQuarterSummary | null,
-    eur: null as EurAnnualSummary | null,
   })
 
   useEffect(() => {
@@ -341,7 +334,6 @@ export default function ReportsPage() {
         // Dashboard costs: core costs + pauschale (calendar quarter/year or expenseDate range).
         // EÜR net: euerYear on core costs (AfA purchase net excluded in aggregation).
         let vatCostDocs: Record<string, unknown>[] = billsInRange
-        let euerCostDocs: Record<string, unknown>[] = billsInRange
         let coreCostDocs: Record<string, unknown>[] = billsInRange
         let pauschalCostDocs: Record<string, unknown>[] = pauschalInRange
         let previousCoreCostDocs: Record<string, unknown>[] = billsInRange
@@ -354,12 +346,10 @@ export default function ReportsPage() {
             fetchBillsForCostQuarter(user.uid, qYear, qNum),
             fetchPauschalForCostQuarter(user.uid, qYear, qNum),
           ])
-          euerCostDocs = vatCostDocs
         } else if (timeframe === "thisYear" || timeframe === "lastYear") {
           const reportYear = getYear(endDate)
-          ;[vatCostDocs, euerCostDocs, coreCostDocs, pauschalCostDocs, previousCoreCostDocs] = await Promise.all([
+          ;[vatCostDocs, coreCostDocs, pauschalCostDocs, previousCoreCostDocs] = await Promise.all([
             fetchBillsForVatPeriod(user.uid, reportYear),
-            fetchBillsForEuerYear(user.uid, reportYear),
             fetchBillsForCostYear(user.uid, reportYear),
             fetchPauschalForCostYear(user.uid, reportYear),
             fetchBillsForCostYear(user.uid, reportYear - 1),
@@ -640,21 +630,6 @@ export default function ReportsPage() {
           ? aggregateElsterQuarterForDocuments(documentsForReport, vatCostDocs)
           : null
 
-        let eur: EurAnnualSummary | null = null
-        if (timeframe === "thisYear" || timeframe === "lastYear") {
-          const [pauschalDocs, assetDocs] = await Promise.all([
-            fetchPauschalCostsForUser(user.uid),
-            fetchAssetsForUser(user.uid),
-          ])
-          const calendarYear = getYear(endDate)
-          eur = aggregateEurAnnualSummary(documentsForReport, euerCostDocs, {
-            calendarYear,
-            pauschalDocs,
-            assetDocs,
-            vatBills: vatCostDocs,
-          })
-        }
-
         setReportData({
           summary: {
             totalRevenue,
@@ -683,7 +658,6 @@ export default function ReportsPage() {
           documents: documentsForReport,
           clients: topClients,
           elster,
-          eur,
           timeframe: {
             startDate,
             endDate,
@@ -956,139 +930,24 @@ export default function ReportsPage() {
               </Card>
             ) : null}
 
-            {isYearTimeframe && reportData.eur ? (
-              <Card className="mb-8">
-                <CardHeader>
-                  <div className="flex items-start gap-2">
-                    <ScrollText className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground" />
-                    <div>
-                      <CardTitle>{eurUi.cardTitle}</CardTitle>
-                      <CardDescription>{eurUi.cardDescription}</CardDescription>
-                    </div>
+            <Card className="mb-8">
+              <CardHeader>
+                <div className="flex items-start gap-2">
+                  <ScrollText className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground" />
+                  <div>
+                    <CardTitle>BWA / EÜR</CardTitle>
+                    <CardDescription>
+                      DATEV BWA 43 (month and year-to-date) and annual EÜR hints now live on their own page.
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="min-w-[120px]">{eurUi.colNeed}</TableHead>
-                          <TableHead className="min-w-[140px]">{eurUi.colFirestore}</TableHead>
-                          <TableHead className="min-w-[140px]">{eurUi.colAnlage}</TableHead>
-                          <TableHead className="text-right min-w-[100px]">{eurUi.colSum}</TableHead>
-                          <TableHead className="min-w-[200px]">{eurUi.colNotes}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow>
-                          <TableCell className="font-medium">{eurUi.rowIncomeLabel}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">
-                            {eurUi.rowIncomeFirestore}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowIncomeAnlage}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.incomeNetEur)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowIncomeDesc}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">{eurUi.rowExpenseLabel}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">
-                            {eurUi.rowExpenseFirestore}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowExpenseAnlage}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.expenseNetEur)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowExpenseDesc}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">{eurUi.rowVatOutLabel}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">
-                            {eurUi.rowVatOutFirestore}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowVatOutAnlage}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.outputVatEur)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowVatOutDesc}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">{eurUi.rowVatInLabel}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">
-                            {eurUi.rowVatInFirestore}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{eurUi.rowVatInAnlage}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatEur(reportData.eur.inputVatEur)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{eurUi.rowVatInDesc}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">Rent / home office (tagged bills)</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">bills · euerExpenseCategory</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">EÜR Z.52</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEur(reportData.eur.z52_homeoffice_mieteEur)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            Net from supplier bills tagged as home office / rent (optional field on save).
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">Pauschale (flat rates)</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">cost_pauschale · calculatedAmount</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">EÜR Z.53</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEur(reportData.eur.z53_pauschalenEur)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            Home office, Verpflegung, internet Pauschale (excl. Pendler) overlapping the year.
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">Commuting (Pendler)</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">cost_pauschale · mileage</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">EÜR Z.54</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEur(reportData.eur.z54_fahrtenEur)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">Pauschale category Pendler (km).</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">Depreciation (AfA)</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">assets · linear</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">EÜR Z.44 / Z.45</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEur(reportData.eur.z44_abschreibungenEur)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            Linear AfA for the calendar year from recorded assets.
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">Other expenses (tagged)</TableCell>
-                          <TableCell className="text-muted-foreground text-xs font-mono">bills · euerExpenseCategory</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">EÜR Z.59</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEur(reportData.eur.z59_sonstigesEur)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            Net from bills tagged as software, internet, bank fees, travel, insurance, office supplies, or
-                            education (optional).
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {(() => {
-                      const end = reportData?.timeframe?.endDate as Date | undefined
-                      const calendarYear =
-                        end instanceof Date && !Number.isNaN(end.getTime())
-                          ? getYear(end)
-                          : getYear(new Date())
-                      const filingDeadlineYear = calendarYear + 1
-                      return eurUi.footerDeadline
-                        .replace("{calendarYear}", String(calendarYear))
-                        .replace("{filingDeadlineYear}", String(filingDeadlineYear))
-                    })()}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : null}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href="/bwa-euer">Open BWA / EÜR</Link>
+                </Button>
+              </CardContent>
+            </Card>
 
             <Tabs defaultValue="overview" className="mb-8">
               <TabsList className="mb-4">

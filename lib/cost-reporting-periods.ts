@@ -4,6 +4,7 @@
 
 import { fiscalYearAndQuarterFromYmd } from "@/lib/cost-bill-fiscal"
 import type { CostItemType, VatQuarter } from "@/lib/cost-item-types"
+import { costCategoryOf, isPersonalIncomeDeduction } from "@/lib/euer-expense-category"
 import { quartalAndYearFromYmd, type ReportingQuartal } from "@/lib/reporting-flags"
 
 export const COST_VAT_EPS = 0.005
@@ -102,7 +103,9 @@ export function assignCostReportingPeriodsFromDoc(
     expenseDateYmd: ymd,
     amountVatForReporting: vatAmountForReporting(doc, type),
     vatDeductible: vatDeductibleFromDoc(doc, type),
-    includeInAnnualEuer: doc.includeInAnnualEuer !== false,
+    includeInAnnualEuer: isPersonalIncomeDeduction(costCategoryOf(doc))
+      ? false
+      : doc.includeInAnnualEuer !== false,
     isPaymentProofOnly: type === "cost_pauschale" ? false : doc.isPaymentProofOnly === true,
   })
 }

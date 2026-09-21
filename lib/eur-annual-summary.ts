@@ -7,7 +7,7 @@
 
 import { costNetEurForContext, sumCostsVatEur } from "@/lib/cost-report-aggregation"
 import { aggregateEuerYearlyExtra, type EuerYearlyExtra } from "@/lib/eur-euer-yearly"
-import { revenueInvoiceMatchesCalendarYear } from "@/lib/reporting-flags"
+import { isCancelledRevenueInvoice, revenueInvoiceMatchesCalendarYear } from "@/lib/reporting-flags"
 import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 
 export type EurAnnualSummary = {
@@ -40,6 +40,7 @@ export function aggregateEurAnnualSummary(
   for (const doc of allDocuments) {
     if (doc.type === "invoices") {
       const d = doc as Record<string, unknown>
+      if (isCancelledRevenueInvoice(d)) continue
       if (euerInvoiceYear != null && !revenueInvoiceMatchesCalendarYear(d, euerInvoiceYear)) continue
       incomeNetEur += invoiceNetIncomeEurForReport(d)
       outputVatEur += invoiceTaxEurForReport(d)

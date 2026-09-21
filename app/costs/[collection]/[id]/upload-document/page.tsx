@@ -26,6 +26,7 @@ import {
   unitsPerEurForCurrencyFromRow,
 } from "@/lib/cost-reference-rates"
 import type { ExtractedBillData } from "@/lib/bill-types"
+import { EUER_CATEGORY_OPTIONS, isCompulsoryTkHealthCare, isPersonalIncomeDeduction, isPrivateTaxPrepayment } from "@/lib/euer-expense-category"
 import {
   ArrowLeft,
   ArrowRight,
@@ -37,21 +38,6 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-const EUER_CATEGORY_OPTIONS = [
-  { value: "software", label: "Software" },
-  { value: "internet", label: "Internet / telecom" },
-  { value: "office_supplies", label: "Office supplies" },
-  { value: "travel", label: "Travel" },
-  { value: "insurance", label: "Insurance" },
-  { value: "bank_fees", label: "Bank fees" },
-  { value: "education", label: "Education" },
-  { value: "homeoffice_miete", label: "Home office / rent share" },
-  { value: "hardware", label: "Hardware / equipment" },
-  { value: "furniture", label: "Furniture" },
-  { value: "subscriptions", label: "Subscriptions / SaaS" },
-  { value: "other", label: "Other" },
-]
 
 type Step = "upload" | "details" | "review"
 
@@ -416,7 +402,14 @@ export default function UploadDocumentPage() {
         if (vendor.trim()) update.vendorName = vendor.trim()
         if (invoiceDate) update.expenseDate = invoiceDate
         if (invoiceNo.trim()) update.invoiceNumber = invoiceNo.trim()
-        if (category) update.category = category
+        if (category) {
+          update.category = category
+          if (isPersonalIncomeDeduction(category)) {
+            update.includeInAnnualEuer = false
+            update.includeInVatQuarter = false
+            update.vatDeductible = false
+          }
+        }
         if (vatCode) update.vatCode = vatCode
         if (vendorOrigin) update.vendorOrigin = vendorOrigin
         update.currency = currencyCode
@@ -816,6 +809,16 @@ export default function UploadDocumentPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {isPrivateTaxPrepayment(category) && (
+                  <p className="text-xs text-muted-foreground">
+                    Tax prepayment (ESt / GewSt / Soli) is private: BWA Privatsteuern, not EÜR expense.
+                  </p>
+                )}
+                {isCompulsoryTkHealthCare(category) && (
+                  <p className="text-xs text-muted-foreground">
+                    TK Pflicht KV/PV: EKS Table C line 2, not Gewinn / Betriebsausgaben / Vorsteuer.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-1">

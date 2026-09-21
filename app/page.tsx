@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings, CheckCircle, Mail } from "lucide-react"
+import { ArrowRight, FileText, Receipt, TruckIcon, BarChart3, Settings, ScrollText, Mail, ClipboardList } from "lucide-react"
 
 export default function Home() {
   return (
@@ -86,24 +86,18 @@ export default function Home() {
               icon={<Settings className="h-6 w-6" />}
               href="/settings"
             />
-            <Card className="bg-primary/5 border-primary/20 transition-all hover:shadow-md">
-              <CardHeader>
-                <div className="flex items-center gap-2 text-primary">
-                  <CheckCircle className="h-6 w-6" />
-                  <CardTitle>Premium Features</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="text-foreground/80">
-                  Coming soon: Custom branding, advanced analytics, and more premium features.
-                </CardDescription>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
-                  Stay Tuned
-                </Button>
-              </CardFooter>
-            </Card>
+            <FeatureCard
+              title="BWA / EÜR"
+              description="Calculate DATEV BWA 43 (month and year-to-date) and annual EÜR hints in EUR, then download the report."
+              icon={<ScrollText className="h-6 w-6" />}
+              href="/bwa-euer"
+            />
+            <FeatureCard
+              title="EKS"
+              description="Fill Jobcenter-EKS Tables A, B and C for the last six months from paid invoices and costs."
+              icon={<ClipboardList className="h-6 w-6" />}
+              href="/eks"
+            />
           </div>
         </div>
       </section>

@@ -47,6 +47,7 @@ import {
   resolveReferenceRatesForCostExpenseDate,
   unitsPerEurForCurrencyFromRow,
 } from "@/lib/cost-reference-rates"
+import { EUER_CATEGORY_OPTIONS, OPERATING_EUER_CATEGORY_OPTIONS, isCompulsoryTkHealthCare, isPersonalIncomeDeduction, isPrivateTaxPrepayment } from "@/lib/euer-expense-category"
 import { CostFormField, CostFormSection } from "@/components/costs/cost-item-form"
 import {
   Calendar,
@@ -131,21 +132,6 @@ const PAUSCHALE_DEFAULTS: Record<
   },
   other: { method: "fixed_amount", rate: "0", legal: "" },
 }
-
-const EUER_CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "software", label: "Software" },
-  { value: "internet", label: "Internet / telecom" },
-  { value: "office_supplies", label: "Office supplies" },
-  { value: "travel", label: "Travel" },
-  { value: "insurance", label: "Insurance" },
-  { value: "bank_fees", label: "Bank fees" },
-  { value: "education", label: "Education" },
-  { value: "homeoffice_miete", label: "Home office / rent share" },
-  { value: "hardware", label: "Hardware / equipment" },
-  { value: "furniture", label: "Furniture" },
-  { value: "subscriptions", label: "Subscriptions / SaaS" },
-  { value: "other", label: "Other" },
-]
 
 const TYPE_ICONS: Record<CostItemType, typeof Wallet> = {
   cost_invoice: Wallet,
@@ -889,12 +875,13 @@ export function AddCostWizard({
     if (!costType || !currentStepKey) return false
     if (currentStepKey === "upload") {
       if (costType === "cost_pauschale") return true
+      if (costType === "cost_invoice") return true
       if (costType === "cost_afa") return pendingFiles.length >= 1
       return pendingFiles.length >= 1
     }
     if (currentStepKey === "amounts") {
       if (costType === "cost_invoice")
-        return invVendor.trim().length > 0 && parseNum(invNet) != null && parseNum(invGross) != null
+        return invDate.trim().length >= 10 && parseNum(invNet) != null
       if (costType === "cost_partial_business_use")
         return partVendor.trim().length > 0 && parseNum(partNet) != null && parseNum(partGross) != null
       return true
@@ -1011,11 +998,14 @@ export function AddCostWizard({
       const netEur = isForeignCurrency && invEurRate ? Math.round((net / invEurRate) * 100) / 100 : undefined
       const vatEur = isForeignCurrency && invEurRate ? Math.round((vat / invEurRate) * 100) / 100 : undefined
       const grossEur = isForeignCurrency && invEurRate ? Math.round((gross / invEurRate) * 100) / 100 : undefined
+      const isTaxPrepay = isPrivateTaxPrepayment(category)
+      const isTkPflicht = isCompulsoryTkHealthCare(category)
+      const isPersonalDeduction = isPersonalIncomeDeduction(category)
       return buildCostItemPayload({
         type: "cost_invoice",
         userId, id, nowIso,
         expenseDateYmd: expDate,
-        title: title.trim() || "Supplier cost",
+        title: title.trim() || (isTkPflicht ? "TK Pflichtbeitrag" : isTaxPrepay ? "Tax prepayment" : "Supplier cost"),
         category: category.trim() || "other",
         subcategory: subcategory.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -1027,20 +1017,26 @@ export function AddCostWizard({
         vendorOrigin: invVendorOrigin || undefined,
         currency: invCurrency,
         amountNetEur: netEur,
-        amountVatEur: vatEur,
-        amountGrossEur: grossEur,
+        amountVatEur: isPersonalDeduction ? 0 : vatEur,
+        amountGrossEur: isPersonalDeduction ? netEur : grossEur,
         eurRate: isForeignCurrency ? invEurRate ?? undefined : undefined,
         eurRateDate: isForeignCurrency ? invEurRateDate ?? undefined : undefined,
         invoice: {
-          vendorName: invVendor.trim(),
+          vendorName:
+            invVendor.trim() ||
+            (isTkPflicht ? "Techniker Krankenkasse" : isTaxPrepay ? "Finanzamt" : ""),
           invoiceNumber: invInvoiceNo.trim() || undefined,
           expenseDate: expDate,
           amountNet: net,
-          amountVat: vat,
-          amountGross: gross,
-          vatDeductible: invVatDeductible,
+          amountVat: isPersonalDeduction ? 0 : vat,
+          amountGross: isPersonalDeduction ? net : gross,
+          vatDeductible: isPersonalDeduction ? false : invVatDeductible,
           businessUsePercent: 100,
           paymentStatus: invPayment,
+          paymentDate: invPayment === "paid" ? expDate : undefined,
+          ...(isPersonalDeduction
+            ? { includeInAnnualEuer: false, includeInVatQuarter: false }
+            : {}),
         },
       })
     }
@@ -1090,6 +1086,7 @@ export function AddCostWizard({
           deductibleVatAmount: ded.deductibleVatAmount,
           deductibleGrossAmount: ded.deductibleGrossAmount,
           paymentStatus: partPayment,
+          paymentDate: partPayment === "paid" ? expDate : undefined,
         },
       })
     }
@@ -1184,8 +1181,10 @@ export function AddCostWizard({
     try {
       // Upload files — belong to the first (primary) month only
       let documents: CostDocument[] = []
-      if (costType !== "cost_pauschale") {
+      let primaryDocStatus: "uploaded" | "pending" = "pending"
+      if (costType !== "cost_pauschale" && pendingFiles.length > 0) {
         documents = await uploadPendingToDrive()
+        primaryDocStatus = "uploaded"
       }
 
       const nowIso = new Date().toISOString()
@@ -1204,7 +1203,7 @@ export function AddCostWizard({
 
         const item = buildSingleItem({
           documents: isPrimary ? documents : [],
-          documentStatus: isPrimary ? "uploaded" : "pending",
+          documentStatus: isPrimary ? primaryDocStatus : "pending",
           expenseDateOverride: expDate,
           recurringGroupId: groupId,
           recurringMonthIndex: isRecurringType ? offset : null,
@@ -1423,8 +1422,14 @@ export function AddCostWizard({
 
     // ── upload ──────────────────────────────────────────────────────────────
     if (currentStepKey === "upload") {
+      const skipOk = costType === "cost_invoice"
       return (
-        <CostFormSection title="Upload document">
+        <CostFormSection title={skipOk ? "Upload document (optional)" : "Upload document"}>
+          {skipOk ? (
+            <p className="text-sm text-muted-foreground mb-3">
+              Skip this step for Finanzamt Vorauszahlung or TK Pflichtbeiträge — amount only, no invoice needed.
+            </p>
+          ) : null}
           {renderFileArea()}
         </CostFormSection>
       )
@@ -1435,7 +1440,7 @@ export function AddCostWizard({
       const hasFiles = pendingFiles.length > 0
       return (
         <div className="space-y-4">
-          {/* AI extraction panel */}
+          {hasFiles ? (
           <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-sm font-medium">Extract data from document</p>
@@ -1452,8 +1457,7 @@ export function AddCostWizard({
                 )}
               </Button>
             </div>
-            {hasFiles ? (
-              <div className="space-y-1">
+            <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Select which file to send to AI:</p>
                 <div className="flex flex-wrap gap-2">
                   {pendingFiles.map((p) => {
@@ -1477,16 +1481,16 @@ export function AddCostWizard({
                   })}
                 </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                No files uploaded yet — go back to the upload step to add a document.
-              </p>
-            )}
           </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Enter the amount paid. No document is required for tax Vorauszahlung or TK Pflichtbeiträge.
+            </p>
+          )}
 
           <CostFormSection title="Vendor details">
-            <CostFormField label="Vendor name *">
-              <Input value={invVendor} onChange={(e) => setInvVendor(e.target.value)} placeholder="e.g. Amazon" />
+            <CostFormField label="Vendor name">
+              <Input value={invVendor} onChange={(e) => setInvVendor(e.target.value)} placeholder="Finanzamt / Techniker Krankenkasse / vendor" />
             </CostFormField>
             <CostFormField label="Invoice number">
               <Input value={invInvoiceNo} onChange={(e) => setInvInvoiceNo(e.target.value)} placeholder="INV-001" />
@@ -1751,7 +1755,29 @@ export function AddCostWizard({
         <div className="space-y-4">
           <CostFormSection title="EÜR category">
             <CostFormField label="Category *">
-              <Select value={category || "__none"} onValueChange={(v) => setCategory(v === "__none" ? "" : v)}>
+              <Select
+                value={category || "__none"}
+                onValueChange={(v) => {
+                  const next = v === "__none" ? "" : v
+                  setCategory(next)
+                  if (isPersonalIncomeDeduction(next)) {
+                    setInvVat("0")
+                    setInvVatDeductible(false)
+                    setInvVatCode("Z14")
+                    const net = parseNum(invNet)
+                    if (net != null) setInvGross(String(net))
+                    if (!invVendor.trim()) {
+                      setInvVendor(
+                        isCompulsoryTkHealthCare(next)
+                          ? "Techniker Krankenkasse"
+                          : isPrivateTaxPrepayment(next)
+                            ? "Finanzamt"
+                            : "",
+                      )
+                    }
+                  }
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder="Choose category" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Select…</SelectItem>
@@ -1761,6 +1787,18 @@ export function AddCostWizard({
                 </SelectContent>
               </Select>
             </CostFormField>
+            {isPrivateTaxPrepayment(category) && (
+              <p className="text-sm text-muted-foreground">
+                Einkommensteuer-, Gewerbesteuer- or Solidaritätszuschlag Vorauszahlung to the Finanzamt.
+                This is not a business expense: it shows on BWA 43 as Privatsteuern (cash), not on EÜR profit.
+              </p>
+            )}
+            {isCompulsoryTkHealthCare(category) && (
+              <p className="text-sm text-muted-foreground">
+                Pflichtbeiträge TK Kranken-/Pflegeversicherung. EKS Table C line 2 (Absetzung vom Einkommen),
+                not Gewinn, not Betriebsausgaben, not Vorsteuer.
+              </p>
+            )}
             <CostFormField label="Title / description">
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short name for the register" />
             </CostFormField>
@@ -1811,7 +1849,7 @@ export function AddCostWizard({
                 <SelectTrigger><SelectValue placeholder="Choose category" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Select…</SelectItem>
-                  {EUER_CATEGORY_OPTIONS.map((opt) => (
+                  {OPERATING_EUER_CATEGORY_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1958,7 +1996,7 @@ export function AddCostWizard({
                 <SelectTrigger><SelectValue placeholder="Choose category" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Select…</SelectItem>
-                  {EUER_CATEGORY_OPTIONS.map((opt) => (
+                  {OPERATING_EUER_CATEGORY_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -2173,7 +2211,7 @@ export function AddCostWizard({
                 <SelectTrigger><SelectValue placeholder="Choose category" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Select…</SelectItem>
-                  {EUER_CATEGORY_OPTIONS.map((opt) => (
+                  {OPERATING_EUER_CATEGORY_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>

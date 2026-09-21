@@ -11,6 +11,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { formatDocumentDateBerlin } from "@/lib/document-date-berlin"
 import { mergeInvoiceCompanyDetailsFromCompany } from "@/lib/invoice-company-details"
+import { invoicePaidStatusPatch } from "@/lib/payment-date"
 import { Calendar, Mail, Phone, User } from "lucide-react"
 import { InvoiceActions } from "@/components/invoices/invoice-actions"
 import { formatCurrency } from "@/lib/utils"
@@ -116,9 +117,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const handleStatusChange = async (newStatus: string) => {
     try {
       const invoiceRef = doc(db, "invoices", id)
+      const paidPatch = invoicePaidStatusPatch(invoice.paymentDate, newStatus)
       await updateDoc(invoiceRef, {
         status: newStatus,
         updatedAt: new Date().toISOString(),
+        ...paidPatch,
       })
 
       // Update local state
@@ -126,6 +129,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         ...invoice,
         status: newStatus,
         updatedAt: new Date().toISOString(),
+        ...paidPatch,
       })
 
       toast({
@@ -216,6 +220,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
                       {formatDocumentDateBerlin(invoice.dueDate, "MMMM d, yyyy")}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-medium mb-1">Payment date</h3>
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                      {invoice.paymentDate
+                        ? formatDocumentDateBerlin(invoice.paymentDate, "MMMM d, yyyy")
+                        : "—"}
                     </div>
                   </div>
                   <div>

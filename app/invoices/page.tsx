@@ -70,6 +70,7 @@ import {
   type InvoiceListSortKey,
   sortInvoiceList,
 } from "@/lib/invoice-list-sort"
+import { invoicePaidStatusPatch } from "@/lib/payment-date"
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth()
@@ -166,15 +167,20 @@ export default function InvoicesPage() {
   const handleStatusChange = async (invoiceId: string, newStatus: string) => {
     try {
       const invoiceRef = doc(db, "invoices", invoiceId)
+      const current = invoices.find((invoice) => invoice.id === invoiceId)
+      const paidPatch = invoicePaidStatusPatch(current?.paymentDate, newStatus)
       await updateDoc(invoiceRef, {
         status: newStatus,
         updatedAt: new Date().toISOString(),
+        ...paidPatch,
       })
 
       // Update local state
       setInvoices(
         invoices.map((invoice) =>
-          invoice.id === invoiceId ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString() } : invoice,
+          invoice.id === invoiceId
+            ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString(), ...paidPatch }
+            : invoice,
         ),
       )
 
@@ -499,6 +505,7 @@ export default function InvoicesPage() {
                     VAT date
                   </TableHead>
                   <TableHead className="whitespace-nowrap">Due date</TableHead>
+                  <TableHead className="whitespace-nowrap">Paid</TableHead>
                   <TableHead>Amount</TableHead>
                   {hasNonEurInView ? (
                     <TableHead className="text-right whitespace-nowrap">FX rate</TableHead>
@@ -543,6 +550,9 @@ export default function InvoicesPage() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
                       {formatDocumentListDate(invoice.dueDate)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                      {invoice.paymentDate ? formatDocumentListDate(invoice.paymentDate) : "—"}
                     </TableCell>
                     <TableCell>{formatCurrency(invoice.total, invoice)}</TableCell>
                     {hasNonEurInView ? (

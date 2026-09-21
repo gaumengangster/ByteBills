@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:eks": "npx tsx --test lib/eks-tk-compulsory.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",

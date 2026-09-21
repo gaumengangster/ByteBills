@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { FileText, Receipt, TruckIcon, BarChart3, Menu, X, LogOut, Wallet, ArrowLeftRight } from 'lucide-react'
+import { FileText, Receipt, TruckIcon, BarChart3, Menu, X, LogOut, Wallet, ArrowLeftRight, ScrollText, ClipboardList } from 'lucide-react'
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import {
@@ -26,6 +26,8 @@ const navItems = [
   { name: "Delivery Notes", href: "/delivery-notes", icon: <TruckIcon className="h-4 w-4" /> },
   { name: "Costs", href: "/costs", icon: <Wallet className="h-4 w-4" /> },
   { name: "Reports", href: "/reports", icon: <BarChart3 className="h-4 w-4" /> },
+  { name: "BWA / EÜR", href: "/bwa-euer", icon: <ScrollText className="h-4 w-4" /> },
+  { name: "EKS", href: "/eks", icon: <ClipboardList className="h-4 w-4" /> },
   { name: "Exchange rates", href: "/exchange-rates", icon: <ArrowLeftRight className="h-4 w-4" /> },
 ]
 

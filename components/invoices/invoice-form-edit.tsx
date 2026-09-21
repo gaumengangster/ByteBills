@@ -44,6 +44,7 @@ const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   invoiceDate: z.date({ required_error: "Invoice date is required" }),
   dueDate: z.date({ required_error: "Due date is required" }),
+  paymentDate: z.date().optional(),
   taxDate: z.date().optional(),
   currency: z.enum(["EUR", "USD", "GBP", "CZK"], { required_error: "Currency is required" }),
   unitOfWork: z.enum(["M/D", "M/H", "Kg", "Piece"], { required_error: "Unit of work is required" }),
@@ -81,6 +82,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: parseStoredDocumentDate(invoice.invoiceDate),
     dueDate: parseStoredDocumentDate(invoice.dueDate),
+    paymentDate: invoice.paymentDate ? parseStoredDocumentDate(invoice.paymentDate) : undefined,
     taxDate: invoice.taxDate ? parseStoredDocumentDate(invoice.taxDate) : undefined,
     currency: (invoice.currency as "EUR" | "USD" | "GBP" | "CZK") || "EUR",
     unitOfWork: (invoice.unitOfWork as "M/D" | "M/H" | "Kg" | "Piece") || "M/D",
@@ -186,6 +188,7 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
         ...(values.currency !== "EUR" && eurPersist.exchangeRateToEur != null
           ? { exchangeRateToEur: eurPersist.exchangeRateToEur }
           : { exchangeRateToEur: deleteField() }),
+        paymentDate: values.paymentDate ? persistDocumentDateYmd(values.paymentDate) : deleteField(),
         eurRateDateVat: deleteField(),
       })
 
@@ -463,6 +466,34 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
                               <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                             </PopoverContent>
                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="paymentDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Payment date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                >
+                                  {field.value ? format(field.value, "PPP") : <span>When paid (optional)</span>}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">Used for Jobcenter-EKS (cash basis).</p>
                           <FormMessage />
                         </FormItem>
                       )}

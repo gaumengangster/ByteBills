@@ -6,6 +6,7 @@
 import { invoiceNetIncomeEurForReport, invoiceTaxEurForReport } from "@/lib/revenue-document-eur"
 import { resolveClientCountryCode } from "@/lib/client-country"
 import { billContributesInputVat, persistedBillVatEur } from "@/lib/report-eur-rates"
+import { isCancelledRevenueInvoice } from "@/lib/reporting-flags"
 
 export type ElsterZmRow = {
   clientName: string
@@ -59,6 +60,7 @@ export function aggregateElsterQuarterForDocuments(
     const t = doc.type
     if (t === "invoices") {
       const row = doc as Record<string, unknown>
+      if (isCancelledRevenueInvoice(row)) continue
       const taxEur = invoiceTaxEurForReport(row)
       const net = invoiceNetIncomeEurForReport(row)
       receivedVatInvoicesEur += taxEur

@@ -1,5 +1,8 @@
 # ByteBills
 
+http://localhost:3001/dashboard
+office@nikolad.uk
+
 <p align="center">
   <img src="public/LOGO-NO-BG.png" alt="ByteBills Logo" width="200" />
 </p>

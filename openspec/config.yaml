@@ -1,0 +1,34 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  ByteBills is a Next.js 15 / React 19 / TypeScript app (App Router, Tailwind, shadcn/ui, Firebase Auth + Firestore) for German freelancers.
+  Documents: invoices, receipts, delivery notes, costs (cost_invoice, cost_partial_business_use, cost_afa, cost_pauschale).
+  Reporting uses persisted EUR fields (BMF Umsatzsteuer-Umrechnungskurse). Do not invent live FX at report time.
+  EÜR (Einnahmen-Überschuss-Rechnung) annual hints already exist: lib/eur-annual-summary.ts, lib/eur-euer-yearly.ts, shown only on /reports for thisYear/lastYear.
+  ELSTER quarterly VAT lives on /reports; keep it there. Auth-gated pages redirect to /auth/login.
+  UI copy: bilingual EN/DE via lib/translations.ts where report strings already exist.
+  Do not claim to replace a Steuerberater; keep the existing tax-advice disclaimer.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

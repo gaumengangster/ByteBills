@@ -1,4 +1,5 @@
 import { costItemSchema, type CostItem, type CostItemType } from "@/lib/cost-item-types"
+import { isPersonalIncomeDeduction } from "@/lib/euer-expense-category"
 
 const GROSS_EPS = 0.02
 
@@ -33,9 +34,12 @@ export function validateCostItem(item: CostItem): string[] {
   const docs = item.documents ?? []
   // Recurring future months have documentStatus = "pending" — no document required yet
   const isDocPending = item.documentStatus === "pending"
+  const amountOnlyPersonal =
+    t === "cost_invoice" && isPersonalIncomeDeduction(item.category)
 
   const requiresDoc =
     !isDocPending &&
+    !amountOnlyPersonal &&
     (t === "cost_invoice" || t === "cost_afa")
 
   const partialNeedsDoc =

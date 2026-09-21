@@ -3,6 +3,7 @@
  */
 
 import type { CostItemType } from "@/lib/cost-item-types"
+import { isPersonalIncomeDeduction, costCategoryOf } from "@/lib/euer-expense-category"
 import {
   billContributesInputVat,
   persistedBillGrossEur,
@@ -43,6 +44,9 @@ export function costIncludedInContext(
 ): boolean {
   const type = costType(doc)
   if (!type) return false
+  if (isPersonalIncomeDeduction(costCategoryOf(doc)) && (ctx === "euerNet" || ctx === "vatQuarter" || ctx === "dashboard")) {
+    return false
+  }
   return CONTEXTS_BY_TYPE[type].includes(ctx)
 }
 

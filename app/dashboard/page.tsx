@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-provider"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, Receipt, TruckIcon, Plus } from 'lucide-react'
+import { FileText, Receipt, TruckIcon, Plus, ScrollText, ClipboardList } from 'lucide-react'
 import Link from "next/link"
 import { collection, getDocs, query, where, limit } from "firebase/firestore"  // Uklonio orderBy
 import { db } from "@/lib/firebase"
@@ -150,9 +150,17 @@ export default function DashboardPage() {
                   <CardTitle>Recent Documents</CardTitle>
                   <CardDescription>Your recently created documents</CardDescription>
                 </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/reports">View Reports</Link>
-                </Button>
+                <div className="flex gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/bwa-euer">BWA / EÜR</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/eks">EKS</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/reports">View Reports</Link>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingData ? (
@@ -203,6 +211,18 @@ export default function DashboardPage() {
                 <CardDescription>Create new documents</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
+                <Button asChild className="w-full justify-start" variant="outline">
+                  <Link href="/bwa-euer">
+                    <ScrollText className="mr-2 h-4 w-4" />
+                    BWA / EÜR report
+                  </Link>
+                </Button>
+                <Button asChild className="w-full justify-start" variant="outline">
+                  <Link href="/eks">
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    EKS (Jobcenter)
+                  </Link>
+                </Button>
                 <Button asChild className="w-full justify-start" variant="outline">
                   <Link href="/invoices/new">
                     <FileText className="mr-2 h-4 w-4" />

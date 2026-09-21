@@ -68,6 +68,30 @@ export function monthlyLinearDepreciationForCalendarYearEur(
   return count * monthly * pct
 }
 
+/** One calendar month of linear AfA (same monthly rate as {@link monthlyLinearDepreciationForCalendarYearEur}). */
+export function linearDepreciationForCalendarMonthEur(
+  net: number,
+  usefulLifeYears: number,
+  depreciationStartYmd: string,
+  calendarYear: number,
+  calendarMonth: number,
+  businessUsePercent: number,
+): number {
+  if (net <= 0 || usefulLifeYears <= 0) return 0
+  if (calendarMonth < 1 || calendarMonth > 12) return 0
+  const monthly = net / (usefulLifeYears * 12)
+  const totalMonths = usefulLifeYears * 12
+  const pct = Math.min(100, Math.max(0, businessUsePercent)) / 100
+  const start = startDateFromYmd(depreciationStartYmd.slice(0, 10))
+  for (let i = 0; i < totalMonths; i++) {
+    const d = addMonths(start, i)
+    if (d.getFullYear() === calendarYear && d.getMonth() + 1 === calendarMonth) {
+      return monthly * pct
+    }
+  }
+  return 0
+}
+
 /** Full AfA accumulated through end of `calendarYear` (ignores private use — for Restbuchwert). */
 export function accumulatedDepreciationThroughEndOfCalendarYearEur(
   net: number,
@@ -131,6 +155,46 @@ export function assetDepreciationForCalendarYearEur(
     return monthlyLinearDepreciationForCalendarYearEur(net, life, start, calendarYear, bp)
   }
   return linearDepreciationForYearEur(net, life, pd, calendarYear) * (Math.min(100, Math.max(0, bp)) / 100)
+}
+
+/** AfA attributable to one calendar month so 12 months sum to {@link assetDepreciationForCalendarYearEur}. */
+export function assetDepreciationForCalendarMonthEur(
+  a: Record<string, unknown>,
+  calendarYear: number,
+  calendarMonth: number,
+): number {
+  if (calendarMonth < 1 || calendarMonth > 12) return 0
+
+  if (a._isAfaSlice === true) {
+    if (a._sliceYear !== calendarYear) return 0
+    const n = typeof a.amountNet === "number" ? a.amountNet : 0
+    const monthly = n / 12
+    if (calendarMonth < 12) return Math.round(monthly * 100) / 100
+    return Math.round((n - monthly * 11) * 100) / 100
+  }
+
+  const net = typeof a.purchasePriceEur === "number" ? a.purchasePriceEur
+            : typeof a.amountNet        === "number" ? a.amountNet : 0
+  const life = typeof a.usefulLifeYears === "number" ? a.usefulLifeYears : 0
+  const pd = typeof a.purchaseDate === "string" ? a.purchaseDate : ""
+  const bp = typeof a.businessUsePercent === "number" && Number.isFinite(a.businessUsePercent) ? a.businessUsePercent : 100
+  if (net <= 0 || life <= 0 || !pd) return 0
+
+  const schedule = a.depreciationSchedule as AssetDepreciationSchedule | undefined
+  const startRaw = a.depreciationStartDate ?? a.depreciationStartYmd
+  const start =
+    typeof startRaw === "string" && startRaw.length >= 8
+      ? startRaw.slice(0, 10)
+      : pd.slice(0, 10)
+
+  if (schedule === "monthly") {
+    return linearDepreciationForCalendarMonthEur(net, life, start, calendarYear, calendarMonth, bp)
+  }
+
+  const yearAmt = linearDepreciationForYearEur(net, life, pd, calendarYear) * (Math.min(100, Math.max(0, bp)) / 100)
+  const monthly = yearAmt / 12
+  if (calendarMonth < 12) return Math.round(monthly * 100) / 100
+  return Math.round((yearAmt - monthly * 11) * 100) / 100
 }
 
 export type EuerYearlyExtra = {

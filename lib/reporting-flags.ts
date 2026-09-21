@@ -69,6 +69,12 @@ export function revenueDocumentReportingFlags(documentDateYmd: string): EntityRe
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
 
+/** Storno — both English spellings. Cancelled invoices must not enter BWA / EÜR income. */
+export function isCancelledRevenueInvoice(data: Record<string, unknown>): boolean {
+  const s = String(data.status ?? "").trim().toLowerCase()
+  return s === "cancelled" || s === "canceled"
+}
+
 /** Stored Leistungsdatum only — valid `taxDate` yyyy-MM-dd (always set on save). */
 export function revenueInvoiceReportingYmd(data: Record<string, unknown>): string | null {
   const taxRaw = data.taxDate

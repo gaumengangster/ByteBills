@@ -49,6 +49,7 @@ const invoiceSchema = z.object({
   dueDate: z.date({
     required_error: "Due date is required",
   }),
+  paymentDate: z.date().optional(),
   taxDate: z.date().optional(),
   currency: z.enum(["EUR", "USD", "GBP", "CZK"], { required_error: "Currency is required" }),
   unitOfWork: z.enum(["M/D", "M/H", "Kg", "Piece"], { required_error: "Unit of work is required" }),
@@ -172,6 +173,7 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
         invoiceNumber: values.invoiceNumber,
         invoiceDate: invoiceDateYmd,
         dueDate: persistDocumentDateYmd(values.dueDate),
+        ...(values.paymentDate ? { paymentDate: persistDocumentDateYmd(values.paymentDate) } : {}),
         taxDate: taxDateYmd,
         euerYear,
         currency: values.currency,
@@ -366,6 +368,34 @@ export function InvoiceForm({ userId, companies }: InvoiceFormProps) {
                               <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                             </PopoverContent>
                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="paymentDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Payment date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                >
+                                  {field.value ? format(field.value, "PPP") : <span>When paid (optional)</span>}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">Used for Jobcenter-EKS (cash basis).</p>
                           <FormMessage />
                         </FormItem>
                       )}
