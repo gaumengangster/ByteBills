@@ -120,6 +120,11 @@ function displayAmount(
   return { main: fmtAmount(value, cur === "EUR" ? "EUR" : cur) }
 }
 
+function sumDefined(a: number | undefined, b: number | undefined): number | undefined {
+  if (a == null || b == null) return undefined
+  return Math.round((a + b) * 100) / 100
+}
+
 function amountCells(item: CostItem): { net: AmountCell; vat: AmountCell; gross: AmountCell } {
   if (item.type === "cost_afa_multiyear_slice") {
     return {
@@ -132,37 +137,29 @@ function amountCells(item: CostItem): { net: AmountCell; vat: AmountCell; gross:
   const currency = item.currency || "EUR"
 
   if (item.type === "cost_partial_business_use") {
-    const grossOriginal =
-      finiteNum(item.deductibleGrossAmount) ??
-      (finiteNum(item.deductibleNetAmount) != null && finiteNum(item.deductibleVatAmount) != null
-        ? item.deductibleNetAmount + item.deductibleVatAmount
-        : undefined)
-    const grossEur =
-      finiteNum(item.deductibleGrossAmountEur) ??
-      (finiteNum(item.deductibleNetAmountEur) != null && finiteNum(item.deductibleVatAmountEur) != null
-        ? Math.round((item.deductibleNetAmountEur + item.deductibleVatAmountEur) * 100) / 100
-        : undefined)
+    const netOrig = finiteNum(item.deductibleNetAmount)
+    const vatOrig = finiteNum(item.deductibleVatAmount)
+    const netEur = finiteNum(item.deductibleNetAmountEur)
+    const vatEur = finiteNum(item.deductibleVatAmountEur)
+    const grossOriginal = finiteNum(item.deductibleGrossAmount) ?? sumDefined(netOrig, vatOrig)
+    const grossEur = finiteNum(item.deductibleGrossAmountEur) ?? sumDefined(netEur, vatEur)
     return {
-      net: displayAmount(finiteNum(item.deductibleNetAmountEur), finiteNum(item.deductibleNetAmount), currency),
-      vat: displayAmount(finiteNum(item.deductibleVatAmountEur), finiteNum(item.deductibleVatAmount), currency),
+      net: displayAmount(netEur, netOrig, currency),
+      vat: displayAmount(vatEur, vatOrig, currency),
       gross: displayAmount(grossEur, grossOriginal, currency),
     }
   }
 
-  const grossOriginal =
-    finiteNum(item.amountGross) ??
-    (finiteNum(item.amountNet) != null && finiteNum(item.amountVat) != null
-      ? item.amountNet + item.amountVat
-      : undefined)
-  const grossEur =
-    finiteNum(item.amountGrossEur) ??
-    (finiteNum(item.amountNetEur) != null && finiteNum(item.amountVatEur) != null
-      ? Math.round((item.amountNetEur + item.amountVatEur) * 100) / 100
-      : undefined)
+  const netOrig = finiteNum(item.amountNet)
+  const vatOrig = finiteNum(item.amountVat)
+  const netEur = finiteNum(item.amountNetEur)
+  const vatEur = finiteNum(item.amountVatEur)
+  const grossOriginal = finiteNum(item.amountGross) ?? sumDefined(netOrig, vatOrig)
+  const grossEur = finiteNum(item.amountGrossEur) ?? sumDefined(netEur, vatEur)
 
   return {
-    net: displayAmount(finiteNum(item.amountNetEur), finiteNum(item.amountNet), currency),
-    vat: displayAmount(finiteNum(item.amountVatEur), finiteNum(item.amountVat), currency),
+    net: displayAmount(netEur, netOrig, currency),
+    vat: displayAmount(vatEur, vatOrig, currency),
     gross: displayAmount(grossEur, grossOriginal, currency),
   }
 }

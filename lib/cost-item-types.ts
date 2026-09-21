@@ -199,6 +199,8 @@ export const costPartialBusinessUseSchema = z
     deductibleNetAmountEur: z.number().optional(),
     /** EUR-equivalent of deductibleVatAmount (only set when currency != "EUR") */
     deductibleVatAmountEur: z.number().optional(),
+    /** EUR-equivalent of deductibleGrossAmount (only set when currency != "EUR") */
+    deductibleGrossAmountEur: z.number().optional(),
   })
   .strict()
 export type CostPartialBusinessUse = z.infer<typeof costPartialBusinessUseSchema>

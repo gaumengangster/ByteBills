@@ -120,6 +120,7 @@ export async function syncCostItemFx(params: {
           : 100
       update.deductibleNetAmountEur = roundMoney(amountNetEur * (bizPct / 100))
       update.deductibleVatAmountEur = roundMoney(amountVatEur * (bizPct / 100))
+      update.deductibleGrossAmountEur = roundMoney(amountGrossEur * (bizPct / 100))
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

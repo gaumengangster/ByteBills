@@ -321,6 +321,9 @@ export function buildCostItemPayload(params: {
     const dedVatEur = isForeign && params.amountVatEur != null
       ? roundMoney(params.amountVatEur * (n.businessUsePercent / 100))
       : undefined
+    const dedGrossEur = isForeign && params.amountGrossEur != null
+      ? roundMoney(params.amountGrossEur * (n.businessUsePercent / 100))
+      : undefined
     const item: CostPartialBusinessUse = withReportingPeriods(
       {
       id,
@@ -361,6 +364,7 @@ export function buildCostItemPayload(params: {
       deductibleGrossAmount: n.deductibleGrossAmount ?? ded.deductibleGrossAmount,
       deductibleNetAmountEur: dedNetEur,
       deductibleVatAmountEur: dedVatEur,
+      deductibleGrossAmountEur: dedGrossEur,
       paymentStatus: n.paymentStatus,
       paymentDate: n.paymentDate,
       },
