@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { parseStoredDocumentDate, persistDocumentDateYmd } from "@/lib/document-date-berlin"
 import { quartalAndYearFromYmd, revenueDocumentReportingFlags } from "@/lib/reporting-flags"
 import { buildRevenueDocumentEurPersistOrDefer } from "@/lib/revenue-document-eur"
+import { companySteuernummer } from "@/lib/company-steuernummer"
 
 type InvoiceFormProps = {
   userId: string
@@ -145,6 +146,10 @@ export function InvoiceForm({ userId, companies, invoice, invoiceId }: InvoiceFo
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
+          steuernummer: companySteuernummer(
+            selectedCompany?.name,
+            selectedCompany?.businessDetails?.steuernummer,
+          ),
           logo: selectedCompany?.logo || null,
           bankName: selectedCompany?.businessDetails?.bankName || "",
           iban: selectedCompany?.businessDetails?.iban || "",

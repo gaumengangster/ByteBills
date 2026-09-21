@@ -9,6 +9,7 @@ import { generateInvoicePDF, downloadPDF } from "@/lib/pdf-service"
 import { buildDocumentFilename } from "@/lib/document-filename"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
+import { companySteuernummer } from "@/lib/company-steuernummer"
 
 type InvoicePreviewProps = {
   isOpen: boolean
@@ -21,6 +22,10 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
   const [isPdfLoading, setIsPdfLoading] = useState(false)
 
   const selectedCompany = companies.find((c) => c.id === invoiceData.companyId) || companies[0]
+  const issuerSteuernummer = companySteuernummer(
+    selectedCompany?.name,
+    selectedCompany?.businessDetails?.steuernummer,
+  )
 
   const currencyObj = { currency: invoiceData.currency || "EUR" }
 
@@ -61,6 +66,10 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
           email: selectedCompany?.businessDetails?.email || "",
           phone: selectedCompany?.businessDetails?.phone || "",
           taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
+          steuernummer: companySteuernummer(
+            selectedCompany?.name,
+            selectedCompany?.businessDetails?.steuernummer,
+          ),
           bankName: selectedCompany?.businessDetails?.bankName || "",
           iban: selectedCompany?.businessDetails?.iban || "",
           swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
@@ -139,6 +148,11 @@ export function InvoicePreview({ isOpen, onClose, invoiceData, companies }: Invo
                   {selectedCompany.businessDetails?.taxNumber?.trim() && (
                     <div>
                       VAT No.: {selectedCompany.businessDetails.taxNumber.trim()}
+                    </div>
+                  )}
+                  {issuerSteuernummer && (
+                    <div>
+                      St.-Nr.: {issuerSteuernummer}
                     </div>
                   )}
                   {selectedCompany.businessDetails?.phone && <div>{selectedCompany.businessDetails.phone}</div>}

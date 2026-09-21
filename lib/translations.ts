@@ -50,6 +50,7 @@ type TranslationKeys = {
   registrationNumber: string
   vatNumber: string
   issuerVatTaxNumber: string
+  issuerSteuernummer: string
 }
 
 const en: TranslationKeys = {
@@ -104,6 +105,7 @@ const en: TranslationKeys = {
   registrationNumber: "Registration No.",
   vatNumber: "VAT No.",
   issuerVatTaxNumber: "VAT No.",
+  issuerSteuernummer: "St.-Nr.",
 }
 
 const de: TranslationKeys = {
@@ -158,6 +160,7 @@ const de: TranslationKeys = {
   registrationNumber: "Reg.-Nr.",
   vatNumber: "USt-idNr.",
   issuerVatTaxNumber: "VAT No.",
+  issuerSteuernummer: "St.-Nr.",
 }
 
 const translations: Record<string, TranslationKeys> = { en, de }

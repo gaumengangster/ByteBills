@@ -4,6 +4,8 @@
  * saved before the address was filled in.
  */
 
+import { companySteuernummer } from "@/lib/company-steuernummer"
+
 export type CompanyDoc = {
   id: string
   name?: string
@@ -22,11 +24,12 @@ export function mergeInvoiceCompanyDetailsFromCompany(
   const snap = (invoice.companyDetails ?? {}) as Record<string, unknown>
   const comp = companies.find((c) => c.id === invoice.companyId)
   const bd = (comp?.businessDetails ?? {}) as Record<string, unknown>
+  const name = str(snap.name) || str(comp?.name) || ""
 
   const pick = (key: string) => str(snap[key]) || str(bd[key]) || ""
 
   return {
-    name: str(snap.name) || str(comp?.name) || "",
+    name,
     address: pick("address"),
     city: pick("city"),
     country: pick("country"),
@@ -38,5 +41,6 @@ export function mergeInvoiceCompanyDetailsFromCompany(
     swiftBic: pick("swiftBic"),
     bankAddress: pick("bankAddress"),
     taxNumber: pick("taxNumber"),
+    steuernummer: companySteuernummer(name, pick("steuernummer")),
   }
 }

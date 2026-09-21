@@ -4,12 +4,15 @@ import { getTranslations } from "./translations"
 import { registerFonts } from "./pdf-fonts"
 import { shouldShowReverseChargeNotice } from "./reverse-charge"
 import { mergeInvoiceCompanyDetailsFromCompany, type CompanyDoc } from "./invoice-company-details"
+import { companySteuernummer } from "./company-steuernummer"
 
 export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[]): Promise<Blob> {
   const mergedDetails =
     Array.isArray(companies) && companies.length > 0
       ? mergeInvoiceCompanyDetailsFromCompany(invoice, companies)
-      : invoice.companyDetails ?? {}
+      : { ...(invoice.companyDetails ?? {}) }
+  const name = typeof mergedDetails.name === "string" ? mergedDetails.name : ""
+  mergedDetails.steuernummer = companySteuernummer(name, mergedDetails.steuernummer)
   const inv = { ...invoice, companyDetails: mergedDetails }
   const lang = inv.language || "en"
   const t = getTranslations(lang)
@@ -58,6 +61,7 @@ export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[])
     email?: string
     phone?: string
     taxNumber?: string
+    steuernummer?: string
   }
   pdf.text(String(cd.name ?? ""), rightMargin, companyY, { align: "right" })
 
@@ -89,6 +93,11 @@ export async function generateInvoicePDF(invoice: any, companies?: CompanyDoc[])
 
   if (cd.taxNumber?.trim()) {
     pdf.text(`${t.issuerVatTaxNumber}: ${cd.taxNumber.trim()}`, rightMargin, companyDetailY, { align: "right" })
+    companyDetailY += 4
+  }
+
+  if (cd.steuernummer?.trim()) {
+    pdf.text(`${t.issuerSteuernummer}: ${cd.steuernummer.trim()}`, rightMargin, companyDetailY, { align: "right" })
     companyDetailY += 4
   }
 

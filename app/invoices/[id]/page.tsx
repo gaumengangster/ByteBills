@@ -399,6 +399,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   ) : null}
 
+                  {typeof displayCompany.steuernummer === "string" && displayCompany.steuernummer.trim() ? (
+                    <div className="flex items-start">
+                      <span className="text-sm text-muted-foreground mr-2 shrink-0 pt-0.5">St.-Nr.:</span>
+                      <span>{displayCompany.steuernummer.trim()}</span>
+                    </div>
+                  ) : null}
+
                   {displayCompany.phone && (
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
@@ -464,6 +471,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   {displayCompany.email && <div>{displayCompany.email}</div>}
                   {typeof displayCompany.taxNumber === "string" && displayCompany.taxNumber.trim() ? (
                     <div>VAT No.: {String(displayCompany.taxNumber).trim()}</div>
+                  ) : null}
+                  {typeof displayCompany.steuernummer === "string" && displayCompany.steuernummer.trim() ? (
+                    <div>St.-Nr.: {String(displayCompany.steuernummer).trim()}</div>
                   ) : null}
                   {displayCompany.phone && <div>{displayCompany.phone}</div>}
                 </div>

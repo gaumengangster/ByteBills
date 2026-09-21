@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { doc, updateDoc, getDoc } from "firebase/firestore"
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
@@ -29,6 +29,7 @@ import {
   getCountryOptions,
   normalizeStoredCountryForForm,
 } from "@/lib/company-country-label"
+import { companySteuernummer, DUKANACIT_STEUERNUMMER, isDukanacitServicesCompany } from "@/lib/company-steuernummer"
 
 type BusinessSettingsProps = {
   selectedCompany: any
@@ -55,6 +56,10 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
       phone: selectedCompany?.businessDetails?.phone || "",
       website: selectedCompany?.businessDetails?.website || "",
       taxNumber: selectedCompany?.businessDetails?.taxNumber || "",
+      steuernummer: companySteuernummer(
+        selectedCompany?.name,
+        selectedCompany?.businessDetails?.steuernummer,
+      ),
       bankName: selectedCompany?.businessDetails?.bankName || "",
       iban: selectedCompany?.businessDetails?.iban || "",
       swiftBic: selectedCompany?.businessDetails?.swiftBic || "",
@@ -63,6 +68,50 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
   })
 
   const countries = getCountryOptions()
+  const seededSteuernummer = useRef(false)
+
+  useEffect(() => {
+    if (!userId || seededSteuernummer.current) return
+    const target = companies.find((c) => isDukanacitServicesCompany(c.name))
+    if (!target) return
+    if (String(target.businessDetails?.steuernummer ?? "").trim()) {
+      seededSteuernummer.current = true
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const userRef = doc(db, "bytebills-users", userId)
+        const userDoc = await getDoc(userRef)
+        if (cancelled || !userDoc.exists()) return
+        const list = Array.isArray(userDoc.data().companies) ? userDoc.data().companies : []
+        let changed = false
+        const updated = list.map((c: { name?: string; businessDetails?: Record<string, unknown> }) => {
+          if (!isDukanacitServicesCompany(c.name)) return c
+          if (String(c.businessDetails?.steuernummer ?? "").trim()) return c
+          changed = true
+          return {
+            ...c,
+            businessDetails: {
+              ...(c.businessDetails ?? {}),
+              steuernummer: DUKANACIT_STEUERNUMMER,
+            },
+          }
+        })
+        if (!changed) {
+          seededSteuernummer.current = true
+          return
+        }
+        await updateDoc(userRef, { companies: updated })
+        seededSteuernummer.current = true
+      } catch (err) {
+        console.error("Steuernummer seed failed", err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId, companies])
 
   useEffect(() => {
     if (companyId) {
@@ -80,6 +129,7 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
             phone: selected.businessDetails?.phone || "",
             website: selected.businessDetails?.website || "",
             taxNumber: selected.businessDetails?.taxNumber || "",
+            steuernummer: companySteuernummer(selected.name, selected.businessDetails?.steuernummer),
             bankName: selected.businessDetails?.bankName || "",
             iban: selected.businessDetails?.iban || "",
             swiftBic: selected.businessDetails?.swiftBic || "",
@@ -480,6 +530,16 @@ export function BusinessSettings({ selectedCompany, companies, userId }: Busines
                     name="businessDetails.taxNumber"
                     value={formData.businessDetails.taxNumber}
                     onChange={handleInputChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="business-steuernummer">Steuernummer (optional)</Label>
+                  <Input
+                    id="business-steuernummer"
+                    name="businessDetails.steuernummer"
+                    value={formData.businessDetails.steuernummer}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 36/268/02118"
                   />
                 </div>
               </div>
